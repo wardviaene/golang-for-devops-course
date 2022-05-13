@@ -17,9 +17,14 @@ type WordsHandler struct {
 }
 
 func (ct *WordsHandler) wordsHandler(w http.ResponseWriter, r *http.Request) {
+	input := r.URL.Query().Get("input")
+	if input != "" {
+		ct.words = append(ct.words, input)
+	}
+
 	wordsOutput := WordsOutput{
 		Page:  "words",
-		Input: "...",
+		Input: input,
 		Words: ct.words,
 	}
 	out, err := json.Marshal(wordsOutput)
