@@ -160,6 +160,18 @@ func (ct *WordsHandler) authMiddleware(next http.HandlerFunc) http.Handler {
 	})
 }
 
+func (wh *WordsHandler) loggingHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if wh.password == "" {
+			log.Println(r.Method, r.URL.Path)
+		} else {
+			log.Println(r.Method, r.URL.Path, "Auth:"+r.Header.Get("Authorization"))
+		}
+
+		h.ServeHTTP(w, r)
+	})
+}
+
 func getRandomSecret() []byte {
 	b := make([]byte, 30)
 	_, err := rand.Read(b)
@@ -187,5 +199,5 @@ func main() {
 	mux.HandleFunc("/", wh.indexHandler)
 	mux.HandleFunc("/login", wh.login)
 	fmt.Printf("Starting server on port 8080...")
-	http.ListenAndServe(":8080", mux)
+	http.ListenAndServe(":8080", wh.loggingHandler(mux))
 }
