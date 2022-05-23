@@ -7,7 +7,9 @@ type MyJWTTransport struct {
 	token     string
 }
 
-func (t MyJWTTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Add("Authorization", "Bearer "+t.token)
-	return t.transport.RoundTrip(req)
+func (m MyJWTTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if m.token != "" {
+		req.Header.Add("Authorization", "Bearer "+m.token)
+	}
+	return m.transport.RoundTrip(req)
 }
