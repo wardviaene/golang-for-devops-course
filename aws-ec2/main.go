@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -16,7 +17,7 @@ func main() {
 		instanceId string
 		err        error
 	)
-	if instanceId, err = createEC2(context.Background()); err != nil {
+	if instanceId, err = createEC2(context.Background(), "us-east-1"); err != nil {
 		fmt.Printf("Error: %s", err)
 		os.Exit(1)
 	}
@@ -24,8 +25,8 @@ func main() {
 	fmt.Printf("instance id: %s\n", instanceId)
 }
 
-func createEC2(ctx context.Context) (string, error) {
-	cfg, err := config.LoadDefaultConfig(ctx)
+func createEC2(ctx context.Context, region string) (string, error) {
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		return "", fmt.Errorf("LoadDefaultConfig error: %s", err)
 	}
@@ -35,11 +36,11 @@ func createEC2(ctx context.Context) (string, error) {
 	existingKeyPairs, err := ec2Client.DescribeKeyPairs(ctx, &ec2.DescribeKeyPairsInput{
 		KeyNames: []string{"go-aws-ec2"},
 	})
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "InvalidKeyPair.NotFound") {
 		return "", fmt.Errorf("DescribeKeyPairs error: %s", err)
 	}
 
-	if len(existingKeyPairs.KeyPairs) == 0 {
+	if existingKeyPairs == nil || len(existingKeyPairs.KeyPairs) == 0 {
 		keyPair, err := ec2Client.CreateKeyPair(ctx, &ec2.CreateKeyPairInput{
 			KeyName: aws.String("go-aws-ec2"),
 		})
