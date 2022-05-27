@@ -35,6 +35,13 @@ func createEC2(ctx context.Context, region string) (string, error) {
 
 	existingKeyPairs, err := ec2Client.DescribeKeyPairs(ctx, &ec2.DescribeKeyPairsInput{
 		KeyNames: []string{"go-aws-ec2"},
+		// or:
+		//Filters: []types.Filter{
+		//	{
+		//		Name:   aws.String("key-name"),
+		//		Values: []string{"go-aws-ec2"},
+		//	},
+		//},
 	})
 	if err != nil && !strings.Contains(err.Error(), "InvalidKeyPair.NotFound") {
 		return "", fmt.Errorf("DescribeKeyPairs error: %s", err)
