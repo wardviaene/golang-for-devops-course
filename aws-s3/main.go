@@ -18,6 +18,7 @@ func main() {
 	var (
 		s3Client *s3.Client
 		err      error
+		out      []byte
 	)
 	if s3Client, err = initS3Client(context.Background(), "us-east-1"); err != nil {
 		fmt.Printf("initConfig error: %s", err)
@@ -31,6 +32,12 @@ func main() {
 		fmt.Printf("uploadFileToS3 error: %s", err)
 		os.Exit(1)
 	}
+	fmt.Printf("Uploaded file.\n")
+	if out, err = downloadFileFromS3(context.Background(), s3Client); err != nil {
+		fmt.Printf("uploadFileToS3 error: %s", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Downloaded file with contents: %s", out)
 }
 
 func initS3Client(ctx context.Context, region string) (*s3.Client, error) {
@@ -63,4 +70,21 @@ func uploadFileToS3(ctx context.Context, s3Client *s3.Client) error {
 		return fmt.Errorf("Upload error: %s", err)
 	}
 	return nil
+}
+func downloadFileFromS3(ctx context.Context, s3Client *s3.Client) ([]byte, error) {
+	buffer := manager.NewWriteAtBuffer([]byte{})
+
+	downloader := manager.NewDownloader(s3Client)
+	numBytes, err := downloader.Download(ctx, buffer, &s3.GetObjectInput{
+		Bucket: aws.String(s3BucketName),
+		Key:    aws.String("test.txt"),
+	})
+	if err != nil {
+		return buffer.Bytes(), fmt.Errorf("Upload error: %s", err)
+	}
+
+	if bytesReceived := int64(len(buffer.Bytes())); numBytes != bytesReceived {
+		return buffer.Bytes(), fmt.Errorf("Incorrect number of bytes returned. Got %d, but expected %d", numBytes, bytesReceived)
+	}
+	return buffer.Bytes(), nil
 }
