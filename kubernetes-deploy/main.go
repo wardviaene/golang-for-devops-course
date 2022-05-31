@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	appsv1 "k8s.io/client-go/applyconfigurations/apps/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
@@ -60,14 +61,19 @@ func deploy(ctx context.Context, client *kubernetes.Clientset) (map[string]strin
 	if err != nil {
 		return nil, fmt.Errorf("Unmarshal error: %s", err)
 	}
-	var deployment *v1.Deployment
+	var deployment *appsv1.DeploymentApplyConfiguration
 	switch obj.(type) {
 	case *v1.Deployment:
-		deployment = obj.(*v1.Deployment)
+		deployment, err = appsv1.ExtractDeployment(obj.(*v1.Deployment), "go-deploy-fieldmanager")
+		if err != nil {
+			return nil, fmt.Errorf("ExtractDeployment error: %s", err)
+		}
 	default:
 		return nil, fmt.Errorf("type not found: %s", groupVersionKind.Kind)
 	}
-	deploymentResponse, err := client.AppsV1().Deployments("default").Create(ctx, deployment, v1meta.CreateOptions{})
+	deploymentResponse, err := client.AppsV1().Deployments("default").Apply(ctx, deployment, v1meta.ApplyOptions{
+		FieldManager: "go-deploy-fieldmanager",
+	})
 	if err != nil {
 		return nil, err
 	}
