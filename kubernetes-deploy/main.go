@@ -9,9 +9,9 @@ import (
 	"time"
 
 	v1 "k8s.io/api/apps/v1"
-	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	appsv1 "k8s.io/client-go/applyconfigurations/apps/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
@@ -23,85 +23,100 @@ func main() {
 		client           *kubernetes.Clientset
 		deploymentLabels map[string]string
 		err              error
+		expectedPods     int32
 	)
 	ctx := context.Background()
-	if client, err = getClient(ctx); err != nil {
-		fmt.Printf("Error: %s\n", err)
+	if client, err = getClient(); err != nil {
+		fmt.Printf("Error: %s", err)
 		os.Exit(1)
 	}
-	if deploymentLabels, err = deploy(ctx, client); err != nil {
-		fmt.Printf("Error: %s\n", err)
+	if deploymentLabels, expectedPods, err = deploy(ctx, client); err != nil {
+		fmt.Printf("Error: %s", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Deployment successful. Labels: %v\n", deploymentLabels)
-	if err = waitForPods(ctx, client, deploymentLabels); err != nil {
-		fmt.Printf("Error: %s\n", err)
+	if err = waitForPods(ctx, client, deploymentLabels, expectedPods); err != nil {
+		fmt.Printf("Error: %s", err)
 		os.Exit(1)
 	}
+	fmt.Printf("deploy finished. Did a deploy with labels: %+v\n", deploymentLabels)
 }
-func getClient(ctx context.Context) (*kubernetes.Clientset, error) {
-	kubeConfigPath := filepath.Join(homedir.HomeDir(), ".kube", "config")
-	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
+
+func getClient() (*kubernetes.Clientset, error) {
+	// use the current context in kubeconfig
+	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(homedir.HomeDir(), ".kube", "config"))
 	if err != nil {
 		return nil, err
 	}
-	client, err := kubernetes.NewForConfig(config)
+
+	// create the clientset
+	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, err
 	}
-	return client, nil
+	return clientset, nil
 }
-func deploy(ctx context.Context, client *kubernetes.Clientset) (map[string]string, error) {
+
+func deploy(ctx context.Context, client *kubernetes.Clientset) (map[string]string, int32, error) {
+	var deployment *v1.Deployment
+
 	appFile, err := ioutil.ReadFile("app.yaml")
 	if err != nil {
-		return nil, fmt.Errorf("ReadFile error: %s", err)
+		return nil, 0, fmt.Errorf("readfile error: %s", err)
 	}
-	decode := scheme.Codecs.UniversalDeserializer().Decode
-	obj, groupVersionKind, err := decode(appFile, nil, nil)
+
+	obj, groupVersionKind, err := scheme.Codecs.UniversalDeserializer().Decode(appFile, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Unmarshal error: %s", err)
+		return nil, 0, fmt.Errorf("Decode error: %s", err)
 	}
-	var deployment *appsv1.DeploymentApplyConfiguration
+
 	switch obj.(type) {
 	case *v1.Deployment:
-		deployment, err = appsv1.ExtractDeployment(obj.(*v1.Deployment), "go-deploy-fieldmanager")
-		if err != nil {
-			return nil, fmt.Errorf("ExtractDeployment error: %s", err)
-		}
+		deployment = obj.(*v1.Deployment)
 	default:
-		return nil, fmt.Errorf("type not found: %s", groupVersionKind.Kind)
+		return nil, 0, fmt.Errorf("Unrecognized type: %s\n", groupVersionKind)
 	}
-	deploymentResponse, err := client.AppsV1().Deployments("default").Apply(ctx, deployment, v1meta.ApplyOptions{
-		FieldManager: "go-deploy-fieldmanager",
-	})
+
+	_, err = client.AppsV1().Deployments("default").Get(ctx, deployment.Name, metav1.GetOptions{})
+	if err != nil && errors.IsNotFound(err) {
+		deploymentResponse, err := client.AppsV1().Deployments("default").Create(ctx, deployment, metav1.CreateOptions{})
+		if err != nil {
+			return nil, 0, fmt.Errorf("deployment error: %s", err)
+		}
+		return deploymentResponse.Spec.Template.Labels, 0, nil
+	} else if err != nil && !errors.IsNotFound(err) {
+		return nil, 0, fmt.Errorf("deployment get error: %s", err)
+	}
+
+	deploymentResponse, err := client.AppsV1().Deployments("default").Update(ctx, deployment, metav1.UpdateOptions{})
 	if err != nil {
-		return nil, err
+		return nil, 0, fmt.Errorf("deployment error: %s", err)
 	}
+	return deploymentResponse.Spec.Template.Labels, *deploymentResponse.Spec.Replicas, nil
 
-	return deploymentResponse.Spec.Template.Labels, nil
 }
-
-func waitForPods(ctx context.Context, client *kubernetes.Clientset, deploymentLabels map[string]string) error {
+func waitForPods(ctx context.Context, client *kubernetes.Clientset, deploymentLabels map[string]string, expectedPods int32) error {
 	for {
 		validatedLabels, err := labels.ValidatedSelectorFromSet(deploymentLabels)
 		if err != nil {
-			return fmt.Errorf("bad selector set: %v", err)
+			return fmt.Errorf("ValidatedSelectorFromSet error: %s", err)
 		}
-		pods, err := client.CoreV1().Pods("default").List(ctx, v1meta.ListOptions{
+
+		podList, err := client.CoreV1().Pods("default").List(ctx, metav1.ListOptions{
 			LabelSelector: validatedLabels.String(),
 		})
 		if err != nil {
-			return fmt.Errorf("Pods list error: %s", err)
+			return fmt.Errorf("pod list error: %s", err)
 		}
-		notRunningPods := 0
-		for _, pod := range pods.Items {
-			if pod.Status.Phase != "Running" {
-				notRunningPods++
+		podsRunning := 0
+		for _, pod := range podList.Items {
+			if pod.Status.Phase == "Running" {
+				podsRunning++
 			}
-			fmt.Printf("pods: %s status = %s\n", pod.Name, pod.Status.Phase)
 		}
 
-		if notRunningPods == 0 {
+		fmt.Printf("Waiting for pods to become ready (running %d / %d)\n", podsRunning, len(podList.Items))
+
+		if podsRunning > 0 && podsRunning == len(podList.Items) && podsRunning == int(expectedPods) {
 			break
 		}
 
