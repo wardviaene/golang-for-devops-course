@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/go-github/v45/github"
 	v1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	appsv1 "k8s.io/client-go/applyconfigurations/apps/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 )
@@ -51,10 +51,15 @@ func (s server) webhook(w http.ResponseWriter, req *http.Request) {
 				w.WriteHeader(500)
 				return
 			}
-			s.deploy(context.Background(), fileBody)
+			_, _, err = s.deploy(context.Background(), fileBody)
+			if err != nil {
+				fmt.Printf("deploy error: %s", err)
+				w.WriteHeader(500)
+				return
+			}
 		}
 	default:
-		fmt.Printf("Event not found error: %s", err)
+		fmt.Printf("Event not found error: %s", event)
 		w.WriteHeader(500)
 		return
 	}
@@ -68,37 +73,47 @@ func getFiles(commits []*github.HeadCommit) []string {
 	}
 	uniqueFilesMap := make(map[string]bool)
 	for _, file := range files {
-		uniqueFilesMap[file] = true
+		if file != "" { // remove empty elements
+			uniqueFilesMap[file] = true
+		}
 	}
-	uniqueFiles := make([]string, len(uniqueFilesMap))
+	uniqueFiles := []string{}
 	for key := range uniqueFilesMap {
 		uniqueFiles = append(uniqueFiles, key)
 	}
 	return uniqueFiles
 }
 
-func (s server) deploy(ctx context.Context, fileBody []byte) (map[string]string, error) {
-	decode := scheme.Codecs.UniversalDeserializer().Decode
-	obj, groupVersionKind, err := decode(fileBody, nil, nil)
+func (s server) deploy(ctx context.Context, fileBody []byte) (map[string]string, int32, error) {
+	var deployment *v1.Deployment
+
+	obj, groupVersionKind, err := scheme.Codecs.UniversalDeserializer().Decode(fileBody, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Unmarshal error: %s", err)
-	}
-	var deployment *appsv1.DeploymentApplyConfiguration
-	switch obj.(type) {
-	case *v1.Deployment:
-		deployment, err = appsv1.ExtractDeployment(obj.(*v1.Deployment), "go-deploy-fieldmanager")
-		if err != nil {
-			return nil, fmt.Errorf("ExtractDeployment error: %s", err)
-		}
-	default:
-		return nil, fmt.Errorf("type not found: %s", groupVersionKind.Kind)
-	}
-	deploymentResponse, err := s.client.AppsV1().Deployments("default").Apply(ctx, deployment, metav1.ApplyOptions{
-		FieldManager: "go-deploy-fieldmanager",
-	})
-	if err != nil {
-		return nil, err
+		return nil, 0, fmt.Errorf("Decode error: %s", err)
 	}
 
-	return deploymentResponse.Spec.Template.Labels, nil
+	switch obj.(type) {
+	case *v1.Deployment:
+		deployment = obj.(*v1.Deployment)
+	default:
+		return nil, 0, fmt.Errorf("Unrecognized type: %s\n", groupVersionKind)
+	}
+
+	_, err = s.client.AppsV1().Deployments("default").Get(ctx, deployment.Name, metav1.GetOptions{})
+	if err != nil && errors.IsNotFound(err) {
+		deploymentResponse, err := s.client.AppsV1().Deployments("default").Create(ctx, deployment, metav1.CreateOptions{})
+		if err != nil {
+			return nil, 0, fmt.Errorf("deployment error: %s", err)
+		}
+		return deploymentResponse.Spec.Template.Labels, 0, nil
+	} else if err != nil && !errors.IsNotFound(err) {
+		return nil, 0, fmt.Errorf("deployment get error: %s", err)
+	}
+
+	deploymentResponse, err := s.client.AppsV1().Deployments("default").Update(ctx, deployment, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, 0, fmt.Errorf("deployment error: %s", err)
+	}
+	return deploymentResponse.Spec.Template.Labels, *deploymentResponse.Spec.Replicas, nil
+
 }

@@ -33,7 +33,7 @@ func main() {
 
 	http.HandleFunc("/webhook", serverInstance.webhook)
 
-	err = http.ListenAndServe(":8090", nil)
+	err = http.ListenAndServe(":8080", nil)
 	fmt.Printf("Exited: %s\n", err)
 }
 func getClient(ctx context.Context, inCluster bool) (*kubernetes.Clientset, error) {
