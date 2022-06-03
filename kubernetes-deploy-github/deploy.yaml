@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: github-deploy
+  template:
+    metadata:
+      labels:
+        app: github-deploy
+    spec:
+      serviceAccountName: github-deploy
+      containers:
+      - name: github-deploy
+        image: wardviaene/github-deploy
+        ports:
+        - name: http-port
+          containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-deploy
+spec:
+  ports:
+  - port: 80
+    targetPort: http-port
+    protocol: TCP
+  selector:
+    app: github-deploy
+  type: NodePort
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-deploy
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: github-deploy
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-deploy
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: github-deploy
+  namespace: default
+roleRef:
+  kind: Role
+  name: github-deploy
+  apiGroup: rbac.authorization.k8s.io
+---
