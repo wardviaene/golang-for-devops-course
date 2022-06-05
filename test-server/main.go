@@ -60,6 +60,11 @@ func (ct *WordsHandler) wordsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ct *WordsHandler) indexHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, "404 Not Found")
+		return
+	}
 	fmt.Fprintf(w, "The server is running!")
 	return
 }
