@@ -182,6 +182,14 @@ func getRandomSecret() []byte {
 }
 
 func main() {
+	port := "8080"
+	testListener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Can't start server on port %q: %s\n", port, err)
+		os.Exit(1)
+	}
+	testListener.Close()
+
 	password := flag.String("password", "", "password protect our API")
 
 	flag.Parse()
@@ -198,6 +206,6 @@ func main() {
 	mux.Handle("/occurrence", wh.authMiddleware(wh.occurrenceHandler))
 	mux.HandleFunc("/", wh.indexHandler)
 	mux.HandleFunc("/login", wh.login)
-	fmt.Printf("Starting server on port 8080...")
-	http.ListenAndServe(":8080", wh.loggingHandler(mux))
+	fmt.Printf("Starting server on port %v...\n", port)
+	http.ListenAndServe(":"+port, wh.loggingHandler(mux))
 }
