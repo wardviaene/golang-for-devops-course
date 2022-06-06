@@ -19,6 +19,19 @@ spec:
         ports:
         - name: http-port
           containerPort: 8080
+        env:
+          - name: GITHUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-deploy
+                key: github-token
+                optional: false
+          - name: WEBHOOK_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: github-deploy
+                key: webhook-secret
+                optional: false
 ---
 apiVersion: v1
 kind: Service
@@ -26,12 +39,11 @@ metadata:
   name: github-deploy
 spec:
   ports:
-  - port: 80
-    targetPort: http-port
+  - port: 8080
     protocol: TCP
   selector:
     app: github-deploy
-  type: NodePort
+  type: LoadBalancer
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -61,4 +73,3 @@ roleRef:
   kind: Role
   name: github-deploy
   apiGroup: rbac.authorization.k8s.io
----
