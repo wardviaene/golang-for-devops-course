@@ -16,14 +16,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load mykey.pem, err: %v", err)
 	}
+	publicKey, err := ioutil.ReadFile("server.pub")
+	if err != nil {
+		log.Fatalf("Failed to load server.pub, err: %v", err)
+	}
 
 	privateKeyParsed, err := ssh.ParsePrivateKey(privateKey)
 	if err != nil {
 		log.Fatalf("Failed to parse mykey.pem, err: %v", err)
-	}
-	publicKey, err := ioutil.ReadFile("server.pub")
-	if err != nil {
-		log.Fatalf("Failed to load server.pub, err: %v", err)
 	}
 	publicKeyParsed, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
 	if err != nil {
@@ -43,18 +43,17 @@ func main() {
 	}
 	defer client.Close()
 
-	// Each ClientConn can support multiple interactive sessions,
-	// represented by a Session.
 	session, err := client.NewSession()
 	if err != nil {
-		log.Fatal("Failed to create session: ", err)
+		log.Fatal("NewSession error: ", err)
 	}
+
 	defer session.Close()
 
-	var out []byte
-	if out, err = session.Output("whoami"); err != nil {
-		log.Fatalf("session shell: %s", err)
+	out, err := session.Output("whoami")
+	if err != nil {
+		log.Fatal("Session output error: ", err)
 	}
 
-	fmt.Printf("Remote output: %s\n", out)
+	fmt.Printf("Output is: %s\n", out)
 }

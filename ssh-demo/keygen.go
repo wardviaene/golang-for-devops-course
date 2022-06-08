@@ -10,7 +10,7 @@ import (
 )
 
 func GenerateKeys() ([]byte, []byte, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, nil, err
 	}
