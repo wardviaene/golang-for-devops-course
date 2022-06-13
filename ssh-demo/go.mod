@@ -1,4 +1,4 @@
-module github.com/wardviaene/golang-for-devops-course/ssh
+module github.com/wardviaene/golang-for-devops-course/ssh-demo
 
 go 1.18
 
