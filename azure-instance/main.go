@@ -15,9 +15,7 @@ import (
 	"github.com/wardviaene/golang-for-devops-course/ssh-demo"
 )
 
-const (
-	location = "westeurope"
-)
+const location = "westus"
 
 func main() {
 	var (
@@ -27,15 +25,19 @@ func main() {
 	)
 	ctx := context.Background()
 	subscriptionID := os.Getenv("SUBSCRIPTION_ID")
-	if token, err = getToken(); err != nil {
-		fmt.Printf("Error: %s\n", err)
+	if len(subscriptionID) == 0 {
+		fmt.Printf("No subscription ID was provided")
 		os.Exit(1)
 	}
 	if pubKey, err = generateKeys(); err != nil {
 		fmt.Printf("generatekeys error: %s\n", err)
 		os.Exit(1)
 	}
-	if err = launchInstance(ctx, token, subscriptionID, &pubKey); err != nil {
+	if token, err = getToken(); err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+	if err = launchInstance(ctx, subscriptionID, token, &pubKey); err != nil {
 		fmt.Printf("Error: %s\n", err)
 		os.Exit(1)
 	}
@@ -61,170 +63,196 @@ func generateKeys() (string, error) {
 	return string(publicKey), nil
 }
 
-func launchInstance(ctx context.Context, token azcore.TokenCredential, subscriptionID string, keydata *string) error {
-	var (
-		resourceGroupClient *armresources.ResourceGroupsClient
-		vnetClient          *armnetwork.VirtualNetworksClient
-		err                 error
+func getToken() (azcore.TokenCredential, error) {
+	token, err := azidentity.NewAzureCLICredential(nil)
+	if err != nil {
+		return token, err
+	}
+	return token, nil
+}
+
+func launchInstance(ctx context.Context, subscriptionID string, cred azcore.TokenCredential, pubKey *string) error {
+	// create resource client
+	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
+	if err != nil {
+		return err
+	}
+	resourceGroupParams := armresources.ResourceGroup{
+		Location: to.Ptr(location),
+	}
+	resourcegroupResponse, err := resourceGroupClient.CreateOrUpdate(ctx, "go-azure-demo", resourceGroupParams, nil)
+	if err != nil {
+		return err
+	}
+
+	// create vnet
+	virtualNetworkClient, err := armnetwork.NewVirtualNetworksClient(subscriptionID, cred, nil)
+	if err != nil {
+		return err
+	}
+
+	vnet, found, err := findVnet(ctx, *resourcegroupResponse.Name, "go-demo", virtualNetworkClient)
+	if err != nil {
+		return err
+	}
+
+	if !found {
+		vnetPollerResp, err := virtualNetworkClient.BeginCreateOrUpdate(
+			ctx,
+			*resourcegroupResponse.Name,
+			"go-demo",
+			armnetwork.VirtualNetwork{
+				Location: to.Ptr(location),
+				Properties: &armnetwork.VirtualNetworkPropertiesFormat{
+					AddressSpace: &armnetwork.AddressSpace{
+						AddressPrefixes: []*string{
+							to.Ptr("10.1.0.0/16"),
+						},
+					},
+				},
+			},
+			nil)
+
+		if err != nil {
+			return err
+		}
+
+		vnetResponse, err := vnetPollerResp.PollUntilDone(ctx, nil)
+		if err != nil {
+			return err
+		}
+		vnet = vnetResponse.VirtualNetwork
+	}
+
+	// subnet
+	subnetsClient, err := armnetwork.NewSubnetsClient(subscriptionID, cred, nil)
+	if err != nil {
+		return err
+	}
+
+	subnetsPollerResp, err := subnetsClient.BeginCreateOrUpdate(
+		ctx,
+		*resourcegroupResponse.Name,
+		*vnet.Name,
+		"go-demo",
+		armnetwork.Subnet{
+			Properties: &armnetwork.SubnetPropertiesFormat{
+				AddressPrefix: to.Ptr("10.1.0.0/24"),
+			},
+		},
+		nil,
 	)
 
-	if resourceGroupClient, err = armresources.NewResourceGroupsClient(subscriptionID, token, nil); err != nil {
-		return err
-	}
-
-	resourcegroupParams := armresources.ResourceGroup{
-		Location: to.Ptr(location),
-	}
-
-	resourceGroup, err := resourceGroupClient.CreateOrUpdate(ctx, "go-demo", resourcegroupParams, nil)
 	if err != nil {
 		return err
 	}
 
-	// vnet
-	if vnetClient, err = armnetwork.NewVirtualNetworksClient(subscriptionID, token, nil); err != nil {
+	subnetResponse, err := subnetsPollerResp.PollUntilDone(ctx, nil)
+	if err != nil {
 		return err
 	}
-	vnetPparams := armnetwork.VirtualNetwork{
-		Location: to.Ptr(location),
-		Properties: &armnetwork.VirtualNetworkPropertiesFormat{
-			AddressSpace: &armnetwork.AddressSpace{
-				AddressPrefixes: []*string{
-					to.Ptr("10.0.0.0/16"), // example 10.1.0.0/16
-				},
+
+	// Public IP
+	publicIPAddressClient, err := armnetwork.NewPublicIPAddressesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return err
+	}
+
+	publicIPPollerResponse, err := publicIPAddressClient.BeginCreateOrUpdate(
+		ctx,
+		*resourcegroupResponse.Name,
+		"go-demo",
+		armnetwork.PublicIPAddress{
+			Location: to.Ptr(location),
+			Properties: &armnetwork.PublicIPAddressPropertiesFormat{
+				PublicIPAllocationMethod: to.Ptr(armnetwork.IPAllocationMethodStatic),
 			},
 		},
-	}
-	vnet, found, err := findVnet(ctx, *resourceGroup.Name, "go-demo", vnetClient)
-	if err != nil {
-		return err
-	}
-	if !found {
-		vnetPollerResponse, err := vnetClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, "go-demo", vnetPparams, nil)
-		if err != nil {
-			return err
-		}
-
-		vnetPollerResult, err := vnetPollerResponse.PollUntilDone(ctx, nil)
-		if err != nil {
-			return err
-		}
-		vnet = vnetPollerResult.VirtualNetwork
-	}
-	// create subnets
-	subnetClient, err := armnetwork.NewSubnetsClient(subscriptionID, token, nil)
+		nil,
+	)
 	if err != nil {
 		return err
 	}
 
-	var subnetResponse armnetwork.SubnetsClientCreateOrUpdateResponse
-
-	subnetParams := armnetwork.Subnet{
-		Properties: &armnetwork.SubnetPropertiesFormat{
-			AddressPrefix: to.Ptr("10.0.1.0/24"),
-		},
-	}
-
-	subnetPollerResponse, err := subnetClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, *vnet.Name, "go-demo", subnetParams, nil)
+	publicIPAddressResponse, err := publicIPPollerResponse.PollUntilDone(ctx, nil)
 	if err != nil {
 		return err
 	}
 
-	subnetResponse, err = subnetPollerResponse.PollUntilDone(ctx, nil)
+	// Network Security Group
+	NewSecurityGroupsClient, err := armnetwork.NewSecurityGroupsClient(subscriptionID, cred, nil)
 	if err != nil {
 		return err
 	}
 
-	publicIPAddressClient, err := armnetwork.NewPublicIPAddressesClient(subscriptionID, token, nil)
-	if err != nil {
-		return err
-	}
-
-	publicIPParams := armnetwork.PublicIPAddress{
-		Location: to.Ptr(location),
-		Properties: &armnetwork.PublicIPAddressPropertiesFormat{
-			PublicIPAllocationMethod: to.Ptr(armnetwork.IPAllocationMethodStatic),
-		},
-	}
-
-	publicIPPollerResponse, err := publicIPAddressClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, "go-demo", publicIPParams, nil)
-	if err != nil {
-		return err
-	}
-
-	publicIPResponse, err := publicIPPollerResponse.PollUntilDone(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	// network security group
-	nsgClient, err := armnetwork.NewSecurityGroupsClient(subscriptionID, token, nil)
-	if err != nil {
-		return err
-	}
-
-	nsgParameters := armnetwork.SecurityGroup{
-		Location: to.Ptr(location),
-		Properties: &armnetwork.SecurityGroupPropertiesFormat{
-			SecurityRules: []*armnetwork.SecurityRule{
-				{
-					Name: to.Ptr("SSH"), //
-					Properties: &armnetwork.SecurityRulePropertiesFormat{
-						SourceAddressPrefix:      to.Ptr("0.0.0.0/0"),
-						SourcePortRange:          to.Ptr("*"),
-						DestinationAddressPrefix: to.Ptr("0.0.0.0/0"),
-						DestinationPortRange:     to.Ptr("22"),
-						Protocol:                 to.Ptr(armnetwork.SecurityRuleProtocolTCP),
-						Access:                   to.Ptr(armnetwork.SecurityRuleAccessAllow),
-						Priority:                 to.Ptr[int32](1001),
-						Description:              to.Ptr("inbound port 22 to all"),
-						Direction:                to.Ptr(armnetwork.SecurityRuleDirectionInbound),
-					},
-				},
-			},
-		},
-	}
-
-	nsgPollerResponse, err := nsgClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, "go-demo", nsgParameters, nil)
-	if err != nil {
-		return err
-	}
-
-	nsgResponse, err := nsgPollerResponse.PollUntilDone(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	// NIC
-	nicClient, err := armnetwork.NewInterfacesClient(subscriptionID, token, nil)
-	if err != nil {
-		return err
-	}
-
-	nicParameters := armnetwork.Interface{
-		Location: to.Ptr(location),
-		Properties: &armnetwork.InterfacePropertiesFormat{
-			IPConfigurations: []*armnetwork.InterfaceIPConfiguration{
-				{
-					Name: to.Ptr("ipConfig"),
-					Properties: &armnetwork.InterfaceIPConfigurationPropertiesFormat{
-						PrivateIPAllocationMethod: to.Ptr(armnetwork.IPAllocationMethodDynamic),
-						Subnet: &armnetwork.Subnet{
-							ID: subnetResponse.ID,
-						},
-						PublicIPAddress: &armnetwork.PublicIPAddress{
-							ID: publicIPResponse.ID,
+	networkSecurityGroupPollerResponse, err := NewSecurityGroupsClient.BeginCreateOrUpdate(
+		ctx,
+		*resourcegroupResponse.Name,
+		"go-demo",
+		armnetwork.SecurityGroup{
+			Location: to.Ptr(location),
+			Properties: &armnetwork.SecurityGroupPropertiesFormat{
+				SecurityRules: []*armnetwork.SecurityRule{
+					{
+						Name: to.Ptr("allow-ssh"),
+						Properties: &armnetwork.SecurityRulePropertiesFormat{
+							SourceAddressPrefix:      to.Ptr("0.0.0.0/0"),
+							SourcePortRange:          to.Ptr("*"),
+							DestinationAddressPrefix: to.Ptr("0.0.0.0/0"),
+							DestinationPortRange:     to.Ptr("22"),
+							Protocol:                 to.Ptr(armnetwork.SecurityRuleProtocolTCP),
+							Access:                   to.Ptr(armnetwork.SecurityRuleAccessAllow),
+							Description:              to.Ptr("allow ssh on port 22"),
+							Direction:                to.Ptr(armnetwork.SecurityRuleDirectionInbound),
+							Priority:                 to.Ptr(int32(1001)),
 						},
 					},
 				},
 			},
-			NetworkSecurityGroup: &armnetwork.SecurityGroup{
-				ID: nsgResponse.ID,
-			},
 		},
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	networkSecurityGroupResponse, err := networkSecurityGroupPollerResponse.PollUntilDone(ctx, nil)
+	if err != nil {
+		return err
 	}
 
-	nicPollerResponse, err := nicClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, "go-demo", nicParameters, nil)
+	interfaceClient, err := armnetwork.NewInterfacesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return err
+	}
+
+	nicPollerResponse, err := interfaceClient.BeginCreateOrUpdate(
+		ctx,
+		*resourcegroupResponse.Name,
+		"go-demo",
+		armnetwork.Interface{
+			Location: to.Ptr(location),
+			Properties: &armnetwork.InterfacePropertiesFormat{
+				NetworkSecurityGroup: &armnetwork.SecurityGroup{
+					ID: networkSecurityGroupResponse.ID,
+				},
+				IPConfigurations: []*armnetwork.InterfaceIPConfiguration{
+					{
+						Name: to.Ptr("go-demo"),
+						Properties: &armnetwork.InterfaceIPConfigurationPropertiesFormat{
+							PrivateIPAllocationMethod: to.Ptr(armnetwork.IPAllocationMethodDynamic),
+							Subnet: &armnetwork.Subnet{
+								ID: subnetResponse.ID,
+							},
+							PublicIPAddress: &armnetwork.PublicIPAddress{
+								ID: publicIPAddressResponse.ID,
+							},
+						},
+					},
+				},
+			},
+		},
+		nil,
+	)
 	if err != nil {
 		return err
 	}
@@ -234,14 +262,14 @@ func launchInstance(ctx context.Context, token azcore.TokenCredential, subscript
 		return err
 	}
 
-	// vm client
-	fmt.Printf("Launching VM:\n")
-	vmClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, token, nil)
+	// Create VM
+	fmt.Printf("Creating VM:\n")
+	vmClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil)
 	if err != nil {
 		return err
 	}
 
-	vmParams := armcompute.VirtualMachine{
+	parameters := armcompute.VirtualMachine{
 		Location: to.Ptr(location),
 		Identity: &armcompute.VirtualMachineIdentity{
 			Type: to.Ptr(armcompute.ResourceIdentityTypeNone),
@@ -259,13 +287,13 @@ func launchInstance(ctx context.Context, token azcore.TokenCredential, subscript
 					CreateOption: to.Ptr(armcompute.DiskCreateOptionTypesFromImage),
 					Caching:      to.Ptr(armcompute.CachingTypesReadWrite),
 					ManagedDisk: &armcompute.ManagedDiskParameters{
-						StorageAccountType: to.Ptr(armcompute.StorageAccountTypesStandardLRS),
+						StorageAccountType: to.Ptr(armcompute.StorageAccountTypesStandardLRS), // OSDisk type Standard/Premium HDD/SSD
 					},
-					DiskSizeGB: to.Ptr[int32](50),
+					DiskSizeGB: to.Ptr[int32](50), // default 127G
 				},
 			},
 			HardwareProfile: &armcompute.HardwareProfile{
-				VMSize: to.Ptr(armcompute.VirtualMachineSizeTypes("Standard_B1s")),
+				VMSize: to.Ptr(armcompute.VirtualMachineSizeTypes("Standard_B1s")), // VM size include vCPUs,RAM,Data Disks,Temp storage.
 			},
 			OSProfile: &armcompute.OSProfile{ //
 				ComputerName:  to.Ptr("go-demo"),
@@ -275,8 +303,8 @@ func launchInstance(ctx context.Context, token azcore.TokenCredential, subscript
 					SSH: &armcompute.SSHConfiguration{
 						PublicKeys: []*armcompute.SSHPublicKey{
 							{
-								Path:    to.Ptr("/home/demo/.ssh/authorized_keys"),
-								KeyData: keydata,
+								Path:    to.Ptr(fmt.Sprintf("/home/%s/.ssh/authorized_keys", "demo")),
+								KeyData: pubKey,
 							},
 						},
 					},
@@ -292,76 +320,30 @@ func launchInstance(ctx context.Context, token azcore.TokenCredential, subscript
 		},
 	}
 
-	vmPollerResponse, err := vmClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, "go-demo", vmParams, nil)
+	pollerResponse, err := vmClient.BeginCreateOrUpdate(ctx, *resourcegroupResponse.Name, "go-demo", parameters, nil)
 	if err != nil {
 		return err
 	}
 
-	vmResp, err := vmPollerResponse.PollUntilDone(ctx, nil)
+	vmResponse, err := pollerResponse.PollUntilDone(ctx, nil)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("VM created: %s\n", *vmResp.ID)
+	fmt.Printf("VM Created: %s\n", *vmResponse.ID)
 
 	return nil
 }
 
-func getToken() (azcore.TokenCredential, error) {
-	cred, err := azidentity.NewAzureCLICredential(&azidentity.AzureCLICredentialOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	return cred, nil
-}
-
-func findSubnet(ctx context.Context, resourceGroupName, vnetName, subnetName string, subnetClient *armnetwork.SubnetsClient) (bool, error) {
-	_, err := subnetClient.Get(ctx, resourceGroupName, vnetName, subnetName, nil)
-
-	if err != nil {
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.ErrorCode == "NotFound" {
-			return false, nil
-		} else {
-			return false, err
-		}
-	}
-	return true, nil
-}
-
 func findVnet(ctx context.Context, resourceGroupName, vnetName string, vnetClient *armnetwork.VirtualNetworksClient) (armnetwork.VirtualNetwork, bool, error) {
 	vnet, err := vnetClient.Get(ctx, resourceGroupName, vnetName, nil)
-
 	if err != nil {
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.ErrorCode == "NotFound" {
+		var errResponse *azcore.ResponseError
+		if errors.As(err, &errResponse) && errResponse.ErrorCode == "ResourceNotFound" {
 			return vnet.VirtualNetwork, false, nil
-		} else {
-			return vnet.VirtualNetwork, false, err
 		}
+		return vnet.VirtualNetwork, false, err
 	}
+
 	return vnet.VirtualNetwork, true, nil
 }
-
-/*func getTenantID(ctx context.Context, token azcore.TokenCredential) (string, error) {
-	var (
-		err         error
-		accessToken azcore.AccessToken
-	)
-	if accessToken, err = token.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://graph.microsoft.com"},
-	}); err != nil {
-		return "", err
-	}
-	parsedToken, _ := jwt.Parse(accessToken.Token, func(token *jwt.Token) (interface{}, error) {
-		// we can't validate this token
-		// see https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/issues/609#issuecomment-383877585
-		return nil, nil
-	})
-	if tid, ok := parsedToken.Claims.(jwt.MapClaims)["tid"]; ok {
-		return tid.(string), nil
-	}
-
-	return "", fmt.Errorf("tenant id not found")
-}*/
