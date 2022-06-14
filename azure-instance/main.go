@@ -95,52 +95,44 @@ func launchInstance(ctx context.Context, token azcore.TokenCredential, subscript
 			},
 		},
 	}
-
-	vnetPollerResponse, err := vnetClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, "go-demo", vnetPparams, nil)
+	vnet, found, err := findVnet(ctx, *resourceGroup.Name, "go-demo", vnetClient)
 	if err != nil {
 		return err
 	}
+	if !found {
+		vnetPollerResponse, err := vnetClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, "go-demo", vnetPparams, nil)
+		if err != nil {
+			return err
+		}
 
-	vnet, err := vnetPollerResponse.PollUntilDone(ctx, nil)
-	if err != nil {
-		return err
+		vnetPollerResult, err := vnetPollerResponse.PollUntilDone(ctx, nil)
+		if err != nil {
+			return err
+		}
+		vnet = vnetPollerResult.VirtualNetwork
 	}
-
 	// create subnets
 	subnetClient, err := armnetwork.NewSubnetsClient(subscriptionID, token, nil)
 	if err != nil {
 		return err
 	}
 
-	subnetNotFound := false
-	_, err = subnetClient.Get(ctx, *resourceGroup.Name, *vnet.Name, "go-demo", nil)
+	var subnetResponse armnetwork.SubnetsClientCreateOrUpdateResponse
 
-	if err != nil {
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.ErrorCode == "NotFound" {
-			subnetNotFound = true
-		} else {
-			return err
-		}
+	subnetParams := armnetwork.Subnet{
+		Properties: &armnetwork.SubnetPropertiesFormat{
+			AddressPrefix: to.Ptr("10.0.1.0/24"),
+		},
 	}
 
-	var subnetResponse armnetwork.SubnetsClientCreateOrUpdateResponse
-	if subnetNotFound {
-		subnetParams := armnetwork.Subnet{
-			Properties: &armnetwork.SubnetPropertiesFormat{
-				AddressPrefix: to.Ptr("10.0.1.0/24"),
-			},
-		}
+	subnetPollerResponse, err := subnetClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, *vnet.Name, "go-demo", subnetParams, nil)
+	if err != nil {
+		return err
+	}
 
-		subnetPollerResponse, err := subnetClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, *vnet.Name, "go-demo", subnetParams, nil)
-		if err != nil {
-			return err
-		}
-
-		subnetResponse, err = subnetPollerResponse.PollUntilDone(ctx, nil)
-		if err != nil {
-			return err
-		}
+	subnetResponse, err = subnetPollerResponse.PollUntilDone(ctx, nil)
+	if err != nil {
+		return err
 	}
 
 	publicIPAddressClient, err := armnetwork.NewPublicIPAddressesClient(subscriptionID, token, nil)
@@ -322,6 +314,34 @@ func getToken() (azcore.TokenCredential, error) {
 	}
 
 	return cred, nil
+}
+
+func findSubnet(ctx context.Context, resourceGroupName, vnetName, subnetName string, subnetClient *armnetwork.SubnetsClient) (bool, error) {
+	_, err := subnetClient.Get(ctx, resourceGroupName, vnetName, subnetName, nil)
+
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.ErrorCode == "NotFound" {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+func findVnet(ctx context.Context, resourceGroupName, vnetName string, vnetClient *armnetwork.VirtualNetworksClient) (armnetwork.VirtualNetwork, bool, error) {
+	vnet, err := vnetClient.Get(ctx, resourceGroupName, vnetName, nil)
+
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.ErrorCode == "NotFound" {
+			return vnet.VirtualNetwork, false, nil
+		} else {
+			return vnet.VirtualNetwork, false, err
+		}
+	}
+	return vnet.VirtualNetwork, true, nil
 }
 
 /*func getTenantID(ctx context.Context, token azcore.TokenCredential) (string, error) {
