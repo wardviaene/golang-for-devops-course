@@ -207,11 +207,16 @@ func main() {
 		tokenSecret: getRandomSecret(),
 	}
 
+	rl := &RateLimit{
+		hits: make(map[string]uint64),
+	}
+
 	mux := http.NewServeMux()
 
 	mux.Handle("/words", wh.authMiddleware(wh.wordsHandler))
 	mux.Handle("/occurrence", wh.authMiddleware(wh.occurrenceHandler))
 	mux.HandleFunc("/assignment1", wh.assignment1)
+	mux.HandleFunc("/ratelimit", rl.ratelimit)
 	mux.HandleFunc("/", wh.indexHandler)
 	mux.HandleFunc("/login", wh.login)
 	fmt.Printf("Starting server on port %v...\n", port)
