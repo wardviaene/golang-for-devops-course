@@ -13,12 +13,17 @@ func main() {
 	var (
 		err error
 	)
+	serverKeyBytes, err := ioutil.ReadFile("server.pem")
+	if err != nil {
+		log.Fatalf("Failed to load authorized_keys, err: %v", err)
+	}
+
 	authorizedKeysBytes, err := ioutil.ReadFile("mykey.pub")
 	if err != nil {
 		log.Fatalf("Failed to load authorized_keys, err: %v", err)
 	}
 
-	if err = ssh.StartServer(authorizedKeysBytes); err != nil {
+	if err = ssh.StartServer(serverKeyBytes, authorizedKeysBytes); err != nil {
 		fmt.Printf("Error: %s\n", err)
 		os.Exit(1)
 	}
