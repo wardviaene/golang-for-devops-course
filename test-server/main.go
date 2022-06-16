@@ -211,6 +211,7 @@ func main() {
 
 	mux.Handle("/words", wh.authMiddleware(wh.wordsHandler))
 	mux.Handle("/occurrence", wh.authMiddleware(wh.occurrenceHandler))
+	mux.HandleFunc("/assignment1", wh.assignment1)
 	mux.HandleFunc("/", wh.indexHandler)
 	mux.HandleFunc("/login", wh.login)
 	fmt.Printf("Starting server on port %v...\n", port)
