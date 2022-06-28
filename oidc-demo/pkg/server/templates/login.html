@@ -18,16 +18,17 @@
               <div class="row g-3">
                 <div class="col-sm-6">
                   <label for="login" class="form-label">Login</label>
-                  <input type="text" class="form-control" id="firstName" placeholder="" value="" required>
+                  <input type="text" class="form-control" name="login" id="login" placeholder="" value="" required>
                 </div>
               </div>
               <div class="row g-3">
                 <div class="col-sm-6">
                   <label for="login" class="form-label">Password</label>
-                  <input type="password" class="form-control" id="password" placeholder="" value="" required>
+                  <input type="password" class="form-control" name="password" id="password" placeholder="" value="" required>
                 </div>
               </div>
               <hr class="my-4 w-50">
+              <input type="hidden" name="sessionID" value="$SESSIONID" />
               <button class="w-50 btn btn-primary btn-lg" type="submit">Login</button>
             </form>
 

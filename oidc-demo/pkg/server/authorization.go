@@ -1,11 +1,16 @@
 package server
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 )
 
-func (s server) authorization(w http.ResponseWriter, r *http.Request) {
+func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
+
 	var (
 		clientID     string
 		redirectURI  string
@@ -33,5 +38,29 @@ func (s server) authorization(w http.ResponseWriter, r *http.Request) {
 		returnError(w, fmt.Errorf("state not supplied"))
 		return
 	}
+	if _, ok := s.LoginRequests[state]; ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
+	buf := make([]byte, 128)
+
+	_, err := io.ReadFull(rand.Reader, buf)
+	if err != nil {
+		returnError(w, fmt.Errorf("crypto/rand is unavailable: Read() failed with %#v", err))
+		return
+	}
+
+	sessionID := url.QueryEscape(base64.StdEncoding.EncodeToString(buf))
+
+	s.LoginRequests[sessionID] = LoginRequest{
+		ClientID:     clientID,
+		RedirectURI:  redirectURI,
+		Scope:        scope,
+		ResponseType: responseType,
+		State:        state,
+	}
+
+	w.Header().Add("Location", "/login?sessionID="+sessionID)
+	w.WriteHeader(http.StatusFound)
 }

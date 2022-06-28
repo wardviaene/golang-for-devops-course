@@ -6,10 +6,15 @@ import (
 )
 
 type server struct {
+	LoginRequests map[string]LoginRequest
+	Codes         map[string]LoginRequest
 }
 
 func Start() error {
-	s := server{}
+	s := &server{
+		LoginRequests: make(map[string]LoginRequest),
+		Codes:         make(map[string]LoginRequest),
+	}
 	http.HandleFunc("/authorization", s.authorization)
 	http.HandleFunc("/token", s.token)
 	http.HandleFunc("/login", s.login)
@@ -21,5 +26,5 @@ func Start() error {
 func returnError(w http.ResponseWriter, err error) {
 	w.WriteHeader(400)
 	w.Write([]byte(err.Error()))
-	fmt.Printf("Error: %s", err)
+	fmt.Printf("Error: %s\n", err)
 }

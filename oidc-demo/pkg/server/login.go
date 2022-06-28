@@ -1,17 +1,70 @@
 package server
 
 import (
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/wardviaene/golang-for-devops-course/oidc-demo/pkg/users"
 )
 
 //go:embed templates/*
 var templateFs embed.FS
 
-func (s server) login(w http.ResponseWriter, r *http.Request) {
+func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
-		w.Write([]byte("doing post"))
+		var (
+			auth         bool
+			err          error
+			ok           bool
+			loginRequest LoginRequest
+		)
+
+		if err = r.ParseForm(); err != nil {
+			returnError(w, err)
+			return
+		}
+
+		if loginRequest, ok = s.LoginRequests[r.PostForm.Get("sessionID")]; !ok {
+			returnError(w, fmt.Errorf("Invalid session ID: %s", r.PostForm.Get("sessionID")))
+			fmt.Printf("loginRequests: %+v\n", s.LoginRequests)
+			return
+		}
+
+		if auth, err = users.Auth(r.PostForm.Get("login"), r.PostForm.Get("password"), ""); err != nil {
+			returnError(w, err)
+			return
+		}
+		if auth {
+			buf := make([]byte, 64)
+
+			_, err := io.ReadFull(rand.Reader, buf)
+			if err != nil {
+				returnError(w, fmt.Errorf("crypto/rand is unavailable: Read() failed with %#v", err))
+				return
+			}
+
+			code := base64.StdEncoding.EncodeToString(buf)
+
+			loginRequest.CodeIssuedAt = time.Now()
+
+			s.Codes[code] = loginRequest
+			delete(s.LoginRequests, r.Form.Get("sessionid"))
+
+			w.Header().Add("Location", loginRequest.RedirectURI+"?code="+code+"&state="+loginRequest.State)
+			w.WriteHeader(http.StatusFound)
+		} else {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Authentication failed"))
+		}
+
 	} else {
 		templateFile, err := templateFs.Open("templates/login.html")
 		if err != nil {
@@ -23,6 +76,7 @@ func (s server) login(w http.ResponseWriter, r *http.Request) {
 			returnError(w, err)
 			return
 		}
-		w.Write(loginTemplate)
+		loginTemplateStr := strings.Replace(string(loginTemplate), "$SESSIONID", url.QueryEscape(r.URL.Query().Get("sessionID")), -1)
+		w.Write([]byte(loginTemplateStr))
 	}
 }
