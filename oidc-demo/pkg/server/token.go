@@ -1,15 +1,13 @@
 package server
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/wardviaene/golang-for-devops-course/oidc-demo/pkg/oidc"
 )
 
 func (s *server) token(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +44,7 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 	// generate id Token
 	claims := jwt.MapClaims{
 		"iss": loginData.AppConfig.Issuer,
-		"sub": loginData.User.Login,
+		"sub": loginData.User.Sub,
 		"aud": loginData.ClientID,
 		"exp": time.Now().Add(1 * time.Hour).Unix(),
 		"iat": time.Now().Unix(),
@@ -63,7 +61,7 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 	// generate Access Token
 	claims = jwt.MapClaims{
 		"iss": loginData.AppConfig.Issuer,
-		"sub": loginData.User.Login,
+		"sub": loginData.User.Sub,
 		"aud": loginData.ClientID,
 		"exp": time.Now().Add(1 * time.Hour).Unix(),
 		"iat": time.Now().Unix(),
@@ -77,16 +75,11 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buf := make([]byte, 64)
-
-	_, err = io.ReadFull(rand.Reader, buf)
+	refreshToken, err := oidc.GetRandomString(64)
 	if err != nil {
-		returnError(w, fmt.Errorf("crypto/rand is unavailable: Read() failed with %#v", err))
+		returnError(w, err)
 		return
 	}
-
-	refreshToken := base64.URLEncoding.EncodeToString(buf)
-
 	responseToken := Token{
 		IDToken:      idTokenString,
 		AccessToken:  accessTokenString,
@@ -94,6 +87,10 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		TokenType:    "bearer",
 		RefreshToken: refreshToken,
 	}
+
+	// remove code
+	delete(s.Codes, r.PostForm.Get("code"))
+
 	out, err := json.Marshal(responseToken)
 	if err != nil {
 		returnError(w, fmt.Errorf("json marshal error: %s", err))

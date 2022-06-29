@@ -1,16 +1,14 @@
 package server
 
 import (
-	"crypto/rand"
 	"embed"
-	"encoding/base64"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/wardviaene/golang-for-devops-course/oidc-demo/pkg/oidc"
 	"github.com/wardviaene/golang-for-devops-course/oidc-demo/pkg/users"
 )
 
@@ -42,15 +40,11 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if auth {
-			buf := make([]byte, 64)
-
-			_, err := io.ReadFull(rand.Reader, buf)
+			code, err := oidc.GetRandomString(64)
 			if err != nil {
-				returnError(w, fmt.Errorf("crypto/rand is unavailable: Read() failed with %#v", err))
+				returnError(w, err)
 				return
 			}
-
-			code := base64.URLEncoding.EncodeToString(buf)
 
 			loginRequest.CodeIssuedAt = time.Now()
 			loginRequest.User = user

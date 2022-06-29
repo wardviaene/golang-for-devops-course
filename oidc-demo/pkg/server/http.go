@@ -29,6 +29,7 @@ func Start(privateKey []byte, config Config) error {
 	http.HandleFunc("/login", s.login)
 	http.HandleFunc("/jwks.json", s.jwks)
 	http.HandleFunc("/.well-known/openid-configuration", s.discovery)
+	http.HandleFunc("/userinfo", s.userinfo)
 
 	return http.ListenAndServe(":8080", nil)
 }

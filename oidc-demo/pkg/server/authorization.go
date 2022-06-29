@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +48,18 @@ func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
 	}
 	if appConfig.ClientID == "" {
 		returnError(w, fmt.Errorf("clientID not recognized"))
+		return
+	}
+
+	// check redirect URI
+	found := false
+	for _, configRedirectURI := range appConfig.RedirectURIs {
+		if strings.HasPrefix(redirectURI, configRedirectURI) {
+			found = true
+		}
+	}
+	if !found {
+		returnError(w, fmt.Errorf("redirect URI not whitelisted"))
 		return
 	}
 

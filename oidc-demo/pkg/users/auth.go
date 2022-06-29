@@ -3,18 +3,31 @@ package users
 import "fmt"
 
 type User struct {
-	Login  string
-	Groups []string
-	Email  string
+	Sub               string `json:"sub"`
+	Name              string `json:"name"`
+	GivenName         string `json:"given_name"`
+	FamilyName        string `json:"family_name"`
+	PreferredUsername string `json:"preferred_username"`
+	Email             string `json:"email"`
+	Picture           string `json:"picture"`
 }
 
 func Auth(login, password, mfa string) (bool, User, error) {
 	if login == "edward" && password == "password" {
-		return true, User{
-			Login:  "edward",
-			Groups: []string{"admin"},
-			Email:  "edward@domain.inv",
-		}, nil
+		return true, GetAllUsers()[0], nil
 	}
 	return false, User{}, fmt.Errorf("Invalid login or password")
+}
+
+func GetAllUsers() []User {
+	return []User{
+		{
+			Sub:               "9-9-9-9",
+			Name:              "edward",
+			GivenName:         "Edward",
+			FamilyName:        "Viaene",
+			PreferredUsername: "edward",
+			Email:             "edward@domain.inv",
+		},
+	}
 }
