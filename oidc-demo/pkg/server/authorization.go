@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 )
 
 func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
@@ -38,8 +37,16 @@ func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
 		returnError(w, fmt.Errorf("state not supplied"))
 		return
 	}
-	if _, ok := s.LoginRequests[state]; ok {
-		w.WriteHeader(http.StatusBadRequest)
+
+	// find appConfig
+	var appConfig AppConfig
+	for _, config := range s.Config.Apps {
+		if config.ClientID == clientID {
+			appConfig = config
+		}
+	}
+	if appConfig.ClientID == "" {
+		returnError(w, fmt.Errorf("clientID not recognized"))
 		return
 	}
 
@@ -51,7 +58,7 @@ func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := url.QueryEscape(base64.StdEncoding.EncodeToString(buf))
+	sessionID := base64.URLEncoding.EncodeToString(buf)
 
 	s.LoginRequests[sessionID] = LoginRequest{
 		ClientID:     clientID,
@@ -59,6 +66,7 @@ func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
 		Scope:        scope,
 		ResponseType: responseType,
 		State:        state,
+		AppConfig:    appConfig,
 	}
 
 	w.Header().Add("Location", "/login?sessionID="+sessionID)

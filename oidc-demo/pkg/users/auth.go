@@ -2,9 +2,19 @@ package users
 
 import "fmt"
 
-func Auth(login, password, mfa string) (bool, error) {
-	if login == "placeholder" && password == "password" {
-		return true, nil
+type User struct {
+	Login  string
+	Groups []string
+	Email  string
+}
+
+func Auth(login, password, mfa string) (bool, User, error) {
+	if login == "edward" && password == "password" {
+		return true, User{
+			Login:  "edward",
+			Groups: []string{"admin"},
+			Email:  "edward@domain.inv",
+		}, nil
 	}
-	return false, fmt.Errorf("Invalid login or password")
+	return false, User{}, fmt.Errorf("Invalid login or password")
 }

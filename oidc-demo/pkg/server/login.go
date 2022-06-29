@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -21,7 +20,6 @@ var templateFs embed.FS
 func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		var (
-			auth         bool
 			err          error
 			ok           bool
 			loginRequest LoginRequest
@@ -38,7 +36,8 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if auth, err = users.Auth(r.PostForm.Get("login"), r.PostForm.Get("password"), ""); err != nil {
+		auth, user, err := users.Auth(r.PostForm.Get("login"), r.PostForm.Get("password"), "")
+		if err != nil {
 			returnError(w, err)
 			return
 		}
@@ -51,9 +50,10 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			code := base64.StdEncoding.EncodeToString(buf)
+			code := base64.URLEncoding.EncodeToString(buf)
 
 			loginRequest.CodeIssuedAt = time.Now()
+			loginRequest.User = user
 
 			s.Codes[code] = loginRequest
 			delete(s.LoginRequests, r.Form.Get("sessionid"))
@@ -76,7 +76,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 			returnError(w, err)
 			return
 		}
-		loginTemplateStr := strings.Replace(string(loginTemplate), "$SESSIONID", url.QueryEscape(r.URL.Query().Get("sessionID")), -1)
+		loginTemplateStr := strings.Replace(string(loginTemplate), "$SESSIONID", r.URL.Query().Get("sessionID"), -1)
 		w.Write([]byte(loginTemplateStr))
 	}
 }
