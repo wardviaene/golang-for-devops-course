@@ -17,26 +17,6 @@ type LoginRequest struct {
 	AppConfig    AppConfig
 }
 
-type Token struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"`
-	IDToken      string `json:"id_token"`
-}
-
-type Jwks struct {
-	Keys []JwksKey `json:"keys"`
-}
-type JwksKey struct {
-	N   string `json:"n"`
-	E   string `json:"e"`
-	Alg string `json:"alg"`
-	Use string `json:"use"`
-	Kid string `json:"kid"`
-	Kty string `json:"kty"`
-}
-
 type Config struct {
 	Apps      map[string]AppConfig `yaml:"apps"`
 	Url       string               `yaml:"url"`

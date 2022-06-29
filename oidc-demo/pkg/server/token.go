@@ -16,6 +16,11 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.PostForm.Get("grant_type") != "authorization_code" {
+		returnError(w, fmt.Errorf("grant_type must be authorization_code"))
+		return
+	}
+
 	loginData, ok := s.Codes[r.PostForm.Get("code")]
 	if !ok {
 		returnError(w, fmt.Errorf("Code not supplied"))
@@ -80,7 +85,7 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		returnError(w, err)
 		return
 	}
-	responseToken := Token{
+	responseToken := oidc.Token{
 		IDToken:      idTokenString,
 		AccessToken:  accessTokenString,
 		ExpiresIn:    60,

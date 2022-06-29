@@ -8,6 +8,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/http"
+
+	"github.com/wardviaene/golang-for-devops-course/oidc-demo/pkg/oidc"
 )
 
 func (s *server) jwks(w http.ResponseWriter, r *http.Request) {
@@ -32,8 +34,8 @@ func (s *server) jwks(w http.ResponseWriter, r *http.Request) {
 		returnError(w, fmt.Errorf("unable to parse public key"))
 		return
 	}
-	jwks := Jwks{
-		Keys: []JwksKey{
+	jwks := oidc.Jwks{
+		Keys: []oidc.JwksKey{
 			{
 				N:   base64.StdEncoding.EncodeToString(privateKey.PublicKey.N.Bytes()),
 				E:   "AQAB",
