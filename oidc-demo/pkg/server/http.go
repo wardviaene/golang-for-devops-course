@@ -12,13 +12,17 @@ type server struct {
 	Config        Config
 }
 
-func Start(privateKey []byte, config Config) error {
-	s := &server{
+func newServer(privateKey []byte, config Config) *server {
+	return &server{
 		LoginRequests: make(map[string]LoginRequest),
 		Codes:         make(map[string]LoginRequest),
 		PrivateKey:    privateKey,
 		Config:        config,
 	}
+}
+
+func Start(httpServer *http.Server, privateKey []byte, config Config) error {
+	s := newServer(privateKey, config)
 
 	if len(config.Apps) == 0 {
 		return fmt.Errorf("No apps loaded, check your config (%s)", config.LoadError)
@@ -31,7 +35,7 @@ func Start(privateKey []byte, config Config) error {
 	http.HandleFunc("/.well-known/openid-configuration", s.discovery)
 	http.HandleFunc("/userinfo", s.userinfo)
 
-	return http.ListenAndServe(":8080", nil)
+	return httpServer.ListenAndServe()
 }
 
 func returnError(w http.ResponseWriter, err error) {

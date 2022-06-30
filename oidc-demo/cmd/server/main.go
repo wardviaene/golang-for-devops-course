@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/wardviaene/golang-for-devops-course/oidc-demo/pkg/server"
@@ -42,5 +43,5 @@ func main() {
 		}
 
 	}
-	fmt.Printf("Server stopped: %s", server.Start(privateKey, server.ReadConfig(config)))
+	fmt.Printf("Server stopped: %s", server.Start(&http.Server{Addr: ":8080"}, privateKey, server.ReadConfig(config)))
 }
