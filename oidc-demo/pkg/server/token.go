@@ -11,6 +11,11 @@ import (
 )
 
 func (s *server) token(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		returnError(w, fmt.Errorf("Got %s request instead of POST", r.Method))
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		returnError(w, err)
 		return

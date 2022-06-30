@@ -42,7 +42,24 @@ func (a *app) index(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) callback(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("parse code"))
+	if r.URL.Query().Get("code") == "" {
+		w.Write([]byte("Code not supplied"))
+		return
+	}
+	discovery, err := oidc.ParseDiscovery(os.Getenv("DISCOVERY_URL"))
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(fmt.Sprintf("ParseDiscovery error: %s", err)))
+		return
+	}
+	_, claims, err := oidc.GetTokenFromCode(discovery.TokenEndpoint, discovery.JwksURI, os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), r.URL.Query().Get("code"))
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(fmt.Sprintf("GetTokenFromCode error: %s", err)))
+		return
+	}
+
+	w.Write([]byte(fmt.Sprintf("Got token. Sub: %s", claims.Subject)))
 }
 
 func getLoginButton(authUrl string) []byte {

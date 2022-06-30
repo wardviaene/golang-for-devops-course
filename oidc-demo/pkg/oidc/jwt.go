@@ -8,27 +8,37 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"net/url"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
-func GetToken(tokenUrl, jwksUrl, clientID, clientSecret, redirectUri string) (*jwt.Token, error) {
-	res, err := http.Get(fmt.Sprintf("%s?grant_type=authorization_code&client_id=%s&client_secret=%s&redirect_uri=%s", tokenUrl, clientID, clientSecret, redirectUri))
+func GetTokenFromCode(tokenUrl, jwksUrl, clientID, clientSecret, code string) (*jwt.Token, *jwt.StandardClaims, error) {
+	form := url.Values{}
+	form.Add("grant_type", "authorization_code")
+	form.Add("client_id", clientID)
+	form.Add("client_secret", clientSecret)
+	form.Add("code", code)
+
+	res, err := http.PostForm(tokenUrl, form)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if res.StatusCode != 200 {
+		return nil, nil, fmt.Errorf("StatusCode %d, error: %s", res.StatusCode, body)
 	}
 	var tokenReply Token
 	err = json.Unmarshal(body, &tokenReply)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	claims := jwt.StandardClaims{}
-	token, err := jwt.ParseWithClaims(tokenReply.IDToken, &claims, func(token *jwt.Token) (interface{}, error) {
+	claims := &jwt.StandardClaims{}
+	token, err := jwt.ParseWithClaims(tokenReply.IDToken, claims, func(token *jwt.Token) (interface{}, error) {
 		kid, ok := token.Header["kid"]
 		if !ok {
 			return nil, fmt.Errorf("kid not found")
@@ -40,7 +50,7 @@ func GetToken(tokenUrl, jwksUrl, clientID, clientSecret, redirectUri string) (*j
 		}
 		return rsaPublicKey, nil
 	})
-	return token, nil
+	return token, claims, nil
 }
 
 func getPublicKeyFromJwks(jwksUrl, kid string) (*rsa.PublicKey, error) {
