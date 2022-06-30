@@ -8,6 +8,8 @@ import (
 	"github.com/wardviaene/golang-for-devops-course/oidc-demo/pkg/oidc"
 )
 
+const redirectUri = "http://localhost:8081/callback"
+
 type app struct {
 }
 
@@ -37,7 +39,7 @@ func (a *app) index(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("GetRandomString error: %s", err)))
 		return
 	}
-	authUrl := fmt.Sprintf("%s?client_id=%s&scope=openid&redirect_uri=%s&response_type=code&state=%s", discovery.AuthorizationEndpoint, os.Getenv("CLIENT_ID"), "http://localhost:8081/callback", state)
+	authUrl := fmt.Sprintf("%s?client_id=%s&scope=openid&redirect_uri=%s&response_type=code&state=%s", discovery.AuthorizationEndpoint, os.Getenv("CLIENT_ID"), redirectUri, state)
 	w.Write(getLoginButton(authUrl))
 }
 
@@ -52,7 +54,7 @@ func (a *app) callback(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("ParseDiscovery error: %s", err)))
 		return
 	}
-	_, claims, err := oidc.GetTokenFromCode(discovery.TokenEndpoint, discovery.JwksURI, os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), r.URL.Query().Get("code"))
+	_, claims, err := oidc.GetTokenFromCode(discovery.TokenEndpoint, discovery.JwksURI, redirectUri, os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), r.URL.Query().Get("code"))
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte(fmt.Sprintf("GetTokenFromCode error: %s", err)))

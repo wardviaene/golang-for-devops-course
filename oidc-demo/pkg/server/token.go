@@ -44,6 +44,16 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		returnError(w, fmt.Errorf("incorect client secret"))
 		return
 	}
+	found := false
+	for _, configRedirectURI := range loginData.AppConfig.RedirectURIs {
+		if r.PostForm.Get("redirect_uri") == configRedirectURI {
+			found = true
+		}
+	}
+	if !found {
+		returnError(w, fmt.Errorf("redirect URI not whitelisted"))
+		return
+	}
 
 	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(s.PrivateKey)
 	if err != nil {
@@ -72,7 +82,9 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 	claims = jwt.MapClaims{
 		"iss": loginData.AppConfig.Issuer,
 		"sub": loginData.User.Sub,
-		"aud": loginData.ClientID,
+		"aud": []string{
+			s.Config.Url + "userinfo",
+		},
 		"exp": time.Now().Add(1 * time.Hour).Unix(),
 		"iat": time.Now().Unix(),
 	}

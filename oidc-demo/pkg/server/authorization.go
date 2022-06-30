@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 )
 
 func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +53,7 @@ func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
 	// check redirect URI
 	found := false
 	for _, configRedirectURI := range appConfig.RedirectURIs {
-		if strings.HasPrefix(redirectURI, configRedirectURI) {
+		if redirectURI == configRedirectURI {
 			found = true
 		}
 	}

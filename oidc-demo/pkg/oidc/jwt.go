@@ -13,12 +13,13 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-func GetTokenFromCode(tokenUrl, jwksUrl, clientID, clientSecret, code string) (*jwt.Token, *jwt.StandardClaims, error) {
+func GetTokenFromCode(tokenUrl, jwksUrl, redirectUri, clientID, clientSecret, code string) (*jwt.Token, *jwt.StandardClaims, error) {
 	form := url.Values{}
 	form.Add("grant_type", "authorization_code")
 	form.Add("client_id", clientID)
 	form.Add("client_secret", clientSecret)
 	form.Add("code", code)
+	form.Add("redirect_uri", redirectUri)
 
 	res, err := http.PostForm(tokenUrl, form)
 	if err != nil {
