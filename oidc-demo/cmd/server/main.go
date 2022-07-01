@@ -12,19 +12,21 @@ import (
 	"github.com/wardviaene/golang-for-devops-course/ssh-demo"
 )
 
+const configFile = "config.yaml"
+
 func main() {
 	var (
 		privateKey []byte
 		err        error
 	)
 	// read config
-	if _, err = os.Stat("config.yaml"); errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("Error: config.yaml doesn't exist\n")
+	if _, err = os.Stat(configFile); errors.Is(err, os.ErrNotExist) {
+		fmt.Printf("Error: %s doesn't exist\n", configFile)
 		os.Exit(1)
 	}
-	config, err := ioutil.ReadFile("config.yaml")
+	config, err := ioutil.ReadFile(configFile)
 	if err != nil {
-		log.Fatalf("Failed to load authorized_keys, err: %v", err)
+		log.Fatalf("Failed to load %s, err: %v", configFile, err)
 	}
 	// read encryption key
 	if _, err = os.Stat("enckey.pem"); errors.Is(err, os.ErrNotExist) {
