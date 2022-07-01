@@ -23,7 +23,7 @@ func GetAllUsers() []User {
 	return []User{
 		{
 			Sub:               "9-9-9-9",
-			Name:              "edward",
+			Name:              "Edward Viaene",
 			GivenName:         "Edward",
 			FamilyName:        "Viaene",
 			PreferredUsername: "edward",

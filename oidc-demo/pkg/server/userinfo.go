@@ -17,7 +17,7 @@ func (s *server) userinfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authHeader = strings.Replace(authHeader, "Bearer ", "", -1)
-	claims := jwt.StandardClaims{}
+	claims := jwt.MapClaims{}
 	_, err := jwt.ParseWithClaims(authHeader, &claims, func(token *jwt.Token) (interface{}, error) {
 		privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(s.PrivateKey)
 		if err != nil {
@@ -31,8 +31,14 @@ func (s *server) userinfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	subject, ok := claims["sub"]
+	if !ok {
+		returnError(w, fmt.Errorf("jwt claims has no sub"))
+		return
+	}
+
 	for _, user := range users.GetAllUsers() {
-		if user.Sub == claims.Subject {
+		if user.Sub == subject {
 			out, err := json.Marshal(user)
 			if err != nil {
 				returnError(w, fmt.Errorf("user marshal error: %s", err))
@@ -43,5 +49,5 @@ func (s *server) userinfo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	returnError(w, fmt.Errorf("user not found: %s", claims.Subject))
+	returnError(w, fmt.Errorf("user not found: %s", subject))
 }
