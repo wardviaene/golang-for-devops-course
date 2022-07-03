@@ -54,7 +54,7 @@ func (a *app) callback(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("ParseDiscovery error: %s", err)))
 		return
 	}
-	_, claims, err := oidc.GetTokenFromCode(discovery.TokenEndpoint, discovery.JwksURI, redirectUri, os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), r.URL.Query().Get("code"))
+	_, claims, err := getTokenFromCode(discovery.TokenEndpoint, discovery.JwksURI, redirectUri, os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), r.URL.Query().Get("code"))
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte(fmt.Sprintf("GetTokenFromCode error: %s", err)))

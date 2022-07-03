@@ -1,4 +1,4 @@
-package oidc
+package main
 
 import (
 	"crypto/rsa"
@@ -11,9 +11,10 @@ import (
 	"net/url"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/wardviaene/golang-for-devops-course/oidc-demo/pkg/oidc"
 )
 
-func GetTokenFromCode(tokenUrl, jwksUrl, redirectUri, clientID, clientSecret, code string) (*jwt.Token, *jwt.StandardClaims, error) {
+func getTokenFromCode(tokenUrl, jwksUrl, redirectUri, clientID, clientSecret, code string) (*jwt.Token, *jwt.StandardClaims, error) {
 	form := url.Values{}
 	form.Add("grant_type", "authorization_code")
 	form.Add("client_id", clientID)
@@ -33,7 +34,7 @@ func GetTokenFromCode(tokenUrl, jwksUrl, redirectUri, clientID, clientSecret, co
 	if res.StatusCode != 200 {
 		return nil, nil, fmt.Errorf("StatusCode %d, error: %s", res.StatusCode, body)
 	}
-	var tokenReply Token
+	var tokenReply oidc.Token
 	err = json.Unmarshal(body, &tokenReply)
 	if err != nil {
 		return nil, nil, err
@@ -64,7 +65,7 @@ func getPublicKeyFromJwks(jwksUrl, kid string) (*rsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	var jwks Jwks
+	var jwks oidc.Jwks
 	err = json.Unmarshal(body, &jwks)
 	if err != nil {
 		return nil, err
