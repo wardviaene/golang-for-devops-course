@@ -1,0 +1,7 @@
+url: "https://13ae-95-103-0-70.eu.ngrok.io/"
+apps:
+  app1:
+    clientID: 1-2-3-4
+    clientSecret: secret
+    issuer: "https://13ae-95-103-0-70.eu.ngrok.io/"
+    redirectURIs: ["http://localhost:8081/callback", "https://openidconnect.net/callback", "http://localhost:8082/securityRealm/finishLogin"]
