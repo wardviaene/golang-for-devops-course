@@ -1,15 +1,13 @@
 package server
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
-	"io"
 	"net/http"
+
+	"github.com/wardviaene/golang-for-devops-course/oidc-demo/pkg/oidc"
 )
 
 func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
-
 	var (
 		clientID     string
 		redirectURI  string
@@ -18,59 +16,52 @@ func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
 		state        string
 	)
 	if clientID = r.URL.Query().Get("client_id"); clientID == "" {
-		returnError(w, fmt.Errorf("client_id not supplied"))
+		returnError(w, fmt.Errorf("client_id is empty"))
 		return
 	}
 	if redirectURI = r.URL.Query().Get("redirect_uri"); redirectURI == "" {
-		returnError(w, fmt.Errorf("redirect_uri not supplied"))
+		returnError(w, fmt.Errorf("redirectURI is empty"))
 		return
 	}
 	if scope = r.URL.Query().Get("scope"); scope == "" {
-		returnError(w, fmt.Errorf("scope not supplied"))
+		returnError(w, fmt.Errorf("scope is empty"))
 		return
 	}
-	if responseType = r.URL.Query().Get("response_type"); responseType == "" {
-		returnError(w, fmt.Errorf("response_type not supplied"))
+	if responseType = r.URL.Query().Get("response_type"); responseType != "code" {
+		returnError(w, fmt.Errorf("response_type is empty"))
 		return
 	}
 	if state = r.URL.Query().Get("state"); state == "" {
-		returnError(w, fmt.Errorf("state not supplied"))
+		returnError(w, fmt.Errorf("state is empty"))
 		return
 	}
-
-	// find appConfig
-	var appConfig AppConfig
-	for _, config := range s.Config.Apps {
-		if config.ClientID == clientID {
-			appConfig = config
+	appConfig := AppConfig{}
+	for _, app := range s.Config.Apps {
+		if app.ClientID == clientID {
+			appConfig = app
 		}
 	}
 	if appConfig.ClientID == "" {
-		returnError(w, fmt.Errorf("clientID not recognized"))
+		returnError(w, fmt.Errorf("client_id not found"))
 		return
 	}
 
-	// check redirect URI
 	found := false
-	for _, configRedirectURI := range appConfig.RedirectURIs {
-		if redirectURI == configRedirectURI {
+	for _, redirectURIConfig := range appConfig.RedirectURIs {
+		if redirectURIConfig == redirectURI {
 			found = true
 		}
 	}
 	if !found {
-		returnError(w, fmt.Errorf("redirect URI not whitelisted"))
+		returnError(w, fmt.Errorf("redirect_uri not whitelisted"))
 		return
 	}
 
-	buf := make([]byte, 128)
-
-	_, err := io.ReadFull(rand.Reader, buf)
+	sessionID, err := oidc.GetRandomString(128)
 	if err != nil {
-		returnError(w, fmt.Errorf("crypto/rand is unavailable: Read() failed with %#v", err))
+		returnError(w, fmt.Errorf("GetRandomString error: %s", err))
 		return
 	}
-
-	sessionID := base64.URLEncoding.EncodeToString(buf)
 
 	s.LoginRequests[sessionID] = LoginRequest{
 		ClientID:     clientID,
@@ -78,9 +69,9 @@ func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
 		Scope:        scope,
 		ResponseType: responseType,
 		State:        state,
-		AppConfig:    appConfig,
 	}
 
-	w.Header().Add("Location", "/login?sessionID="+sessionID)
+	w.Header().Add("location", fmt.Sprintf("/login?sessionID=%s", sessionID))
 	w.WriteHeader(http.StatusFound)
+
 }
