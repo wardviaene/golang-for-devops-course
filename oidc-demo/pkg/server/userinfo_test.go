@@ -24,9 +24,8 @@ func TestUserInfo(t *testing.T) {
 	s := newServer(privkeyPem, testConfig)
 
 	// 1. authorization flow
-	endpoint := fmt.Sprintf("/authorization?client_id=%s&client_secret=%s&redirect_uri=%s&scope=openid&response_type=code&state=randomstring",
+	endpoint := fmt.Sprintf("/authorization?client_id=%s&redirect_uri=%s&scope=openid&response_type=code&state=randomstring",
 		s.Config.Apps["app1"].ClientID,
-		s.Config.Apps["app1"].ClientSecret,
 		s.Config.Apps["app1"].RedirectURIs[0],
 	)
 	req := httptest.NewRequest(http.MethodGet, endpoint, nil)
@@ -131,8 +130,8 @@ func TestUserInfo(t *testing.T) {
 		fmt.Printf("IDToken is empty")
 	}
 
-	claims := jwt.StandardClaims{}
-	_, err = jwt.ParseWithClaims(tokenResponse.IDToken, &claims, func(token *jwt.Token) (interface{}, error) {
+	claims := jwt.RegisteredClaims{}
+	_, err = jwt.ParseWithClaims(tokenResponse.AccessToken, &claims, func(token *jwt.Token) (interface{}, error) {
 		privateKeyParsed, err := jwt.ParseRSAPrivateKeyFromPEM(s.PrivateKey)
 		if err != nil {
 			return nil, err

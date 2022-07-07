@@ -6,27 +6,23 @@ import (
 )
 
 type server struct {
-	LoginRequests map[string]LoginRequest
-	Codes         map[string]LoginRequest
-	PrivateKey    []byte
-	Config        Config
+	PrivateKey   []byte
+	Config       Config
+	LoginRequest map[string]LoginRequest
+	Codes        map[string]LoginRequest
 }
 
 func newServer(privateKey []byte, config Config) *server {
 	return &server{
-		LoginRequests: make(map[string]LoginRequest),
-		Codes:         make(map[string]LoginRequest),
-		PrivateKey:    privateKey,
-		Config:        config,
+		PrivateKey:   privateKey,
+		Config:       config,
+		LoginRequest: make(map[string]LoginRequest),
+		Codes:        make(map[string]LoginRequest),
 	}
 }
 
 func Start(httpServer *http.Server, privateKey []byte, config Config) error {
 	s := newServer(privateKey, config)
-
-	if len(config.Apps) == 0 {
-		return fmt.Errorf("No apps loaded, check your config (%s)", config.LoadError)
-	}
 
 	http.HandleFunc("/authorization", s.authorization)
 	http.HandleFunc("/token", s.token)
@@ -39,7 +35,7 @@ func Start(httpServer *http.Server, privateKey []byte, config Config) error {
 }
 
 func returnError(w http.ResponseWriter, err error) {
-	w.WriteHeader(400)
+	w.WriteHeader(http.StatusBadRequest)
 	w.Write([]byte(err.Error()))
 	fmt.Printf("Error: %s\n", err)
 }

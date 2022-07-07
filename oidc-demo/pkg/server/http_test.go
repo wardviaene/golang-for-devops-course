@@ -47,7 +47,7 @@ func testSetup() error {
 				ClientID:     "1-2-3-4",
 				ClientSecret: "secret",
 				Issuer:       "http://localhost:8080",
-				RedirectURIs: []string{"http://localhost:8082/callback"},
+				RedirectURIs: []string{"http://localhost:8081/callback"},
 			},
 		},
 	}
