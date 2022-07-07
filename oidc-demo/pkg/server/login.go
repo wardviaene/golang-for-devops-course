@@ -3,7 +3,7 @@ package server
 import (
 	"embed"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -17,60 +17,66 @@ var templateFs embed.FS
 
 func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
-		var (
-			err          error
-			ok           bool
-			loginRequest LoginRequest
-		)
-
-		if err = r.ParseForm(); err != nil {
-			returnError(w, err)
+		err := r.ParseForm()
+		if err != nil {
+			returnError(w, fmt.Errorf("Parseform error: %s", err))
 			return
 		}
-
-		if loginRequest, ok = s.LoginRequests[r.PostForm.Get("sessionID")]; !ok {
-			returnError(w, fmt.Errorf("Invalid session ID: %s", r.PostForm.Get("sessionID")))
-			fmt.Printf("loginRequests: %+v\n", s.LoginRequests)
+		sessionID := r.PostForm.Get("sessionID")
+		loginRequest, ok := s.LoginRequest[sessionID]
+		if !ok {
+			returnError(w, fmt.Errorf("Session not found"))
 			return
 		}
 
 		auth, user, err := users.Auth(r.PostForm.Get("login"), r.PostForm.Get("password"), "")
 		if err != nil {
-			returnError(w, err)
+			returnError(w, fmt.Errorf("Authentication error: %s", err))
 			return
 		}
+
 		if auth {
 			code, err := oidc.GetRandomString(64)
 			if err != nil {
-				returnError(w, err)
+				returnError(w, fmt.Errorf("GetRandomString error: %s", err))
 				return
 			}
 
 			loginRequest.CodeIssuedAt = time.Now()
 			loginRequest.User = user
-
 			s.Codes[code] = loginRequest
-			delete(s.LoginRequests, r.Form.Get("sessionid"))
 
-			w.Header().Add("Location", loginRequest.RedirectURI+"?code="+code+"&state="+loginRequest.State)
+			delete(s.LoginRequest, sessionID)
+
+			w.Header().Add("location", fmt.Sprintf("%s?code=%s&state=%s", loginRequest.RedirectURI, code, loginRequest.State))
 			w.WriteHeader(http.StatusFound)
 		} else {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte("Authentication failed"))
 		}
 
-	} else {
-		templateFile, err := templateFs.Open("templates/login.html")
-		if err != nil {
-			returnError(w, err)
-			return
-		}
-		loginTemplate, err := ioutil.ReadAll(templateFile)
-		if err != nil {
-			returnError(w, err)
-			return
-		}
-		loginTemplateStr := strings.Replace(string(loginTemplate), "$SESSIONID", r.URL.Query().Get("sessionID"), -1)
-		w.Write([]byte(loginTemplateStr))
+		return
 	}
+	var (
+		sessionID string
+	)
+	if sessionID = r.URL.Query().Get("sessionID"); sessionID == "" {
+		returnError(w, fmt.Errorf("sessionID is empty"))
+		return
+	}
+
+	templateFile, err := templateFs.Open("templates/login.html")
+	if err != nil {
+		returnError(w, fmt.Errorf("templateFS open error: %s", err))
+		return
+	}
+	templateFileBytes, err := io.ReadAll(templateFile)
+	if err != nil {
+		returnError(w, fmt.Errorf("ReadAll error: %s", err))
+		return
+	}
+
+	templateFileStr := strings.Replace(string(templateFileBytes), "$SESSIONID", sessionID, -1)
+
+	w.Write([]byte(templateFileStr))
 }

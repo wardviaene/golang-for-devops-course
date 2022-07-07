@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 
@@ -11,11 +12,14 @@ import (
 const redirectUri = "http://localhost:8081/callback"
 
 type app struct {
+	states map[string]bool
 }
 
 func main() {
 
-	a := app{}
+	a := app{
+		states: make(map[string]bool),
+	}
 
 	http.HandleFunc("/", a.index)
 	http.HandleFunc("/callback", a.callback)
@@ -27,47 +31,76 @@ func main() {
 }
 
 func (a *app) index(w http.ResponseWriter, r *http.Request) {
-	discovery, err := oidc.ParseDiscovery(os.Getenv("DISCOVERY_URL"))
+	oidcEndpoint := os.Getenv("OIDC_ENDPOINT")
+	discovery, err := oidc.ParseDiscovery(oidcEndpoint + "/.well-known/openid-configuration")
 	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte(fmt.Sprintf("ParseDiscovery error: %s", err)))
+		returnError(w, fmt.Errorf("ParseDiscovery error: %s", err))
 		return
 	}
-	state, err := oidc.GetRandomString(32)
+
+	state, err := oidc.GetRandomString(64)
 	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte(fmt.Sprintf("GetRandomString error: %s", err)))
+		returnError(w, fmt.Errorf("GetRandomString error: %s", err))
 		return
 	}
-	authUrl := fmt.Sprintf("%s?client_id=%s&scope=openid&redirect_uri=%s&response_type=code&state=%s", discovery.AuthorizationEndpoint, os.Getenv("CLIENT_ID"), redirectUri, state)
-	w.Write(getLoginButton(authUrl))
+
+	a.states[state] = true
+
+	authorizationURL := fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&scope=openid&response_type=code&state=%s", discovery.AuthorizationEndpoint, os.Getenv("CLIENT_ID"), redirectUri, state)
+	w.Write([]byte(`<html>
+		<body>
+		<a href="` + authorizationURL + `"><button style="width: 100px;">Login</button></a>
+		</body>
+	</html>`))
 }
 
 func (a *app) callback(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Query().Get("code") == "" {
-		w.Write([]byte("Code not supplied"))
-		return
-	}
-	discovery, err := oidc.ParseDiscovery(os.Getenv("DISCOVERY_URL"))
+	oidcEndpoint := os.Getenv("OIDC_ENDPOINT")
+	discovery, err := oidc.ParseDiscovery(oidcEndpoint + "/.well-known/openid-configuration")
 	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte(fmt.Sprintf("ParseDiscovery error: %s", err)))
-		return
-	}
-	_, claims, err := getTokenFromCode(discovery.TokenEndpoint, discovery.JwksURI, redirectUri, os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), r.URL.Query().Get("code"))
-	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte(fmt.Sprintf("GetTokenFromCode error: %s", err)))
+		returnError(w, fmt.Errorf("ParseDiscovery error: %s", err))
 		return
 	}
 
-	w.Write([]byte(fmt.Sprintf("Got token. Sub: %s", claims.Subject)))
+	if _, ok := a.states[r.URL.Query().Get("state")]; !ok {
+		returnError(w, fmt.Errorf("state mismatch error"))
+		return
+	}
+
+	delete(a.states, r.URL.Query().Get("state"))
+
+	accessToken, _, err := getTokenFromCode(discovery.TokenEndpoint, discovery.JwksURI, redirectUri, os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), r.URL.Query().Get("code"))
+	if err != nil {
+		returnError(w, fmt.Errorf("getTokenFromCode error: %s", err))
+		return
+	}
+
+	req, err := http.NewRequest("GET", discovery.UserinfoEndpoint, nil)
+	if err != nil {
+		returnError(w, fmt.Errorf("newRequest error: %s", err))
+		return
+	}
+	req.Header.Add("Authorization", "Bearer "+accessToken.Raw)
+
+	client := &http.Client{}
+
+	res, err := client.Do(req)
+	if err != nil {
+		returnError(w, fmt.Errorf("do request error: %s", err))
+		return
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		returnError(w, fmt.Errorf("ReadAll error: %s", err))
+		return
+	}
+
+	w.Write([]byte(fmt.Sprintf("Token received. Userinfo: %s", body)))
 }
 
-func getLoginButton(authUrl string) []byte {
-	return []byte(`<html>
-	<body>
-		<a href="` + authUrl + `"><button style="width: 100px;">Login</button></a>
-	</body>
-	</html>`)
+func returnError(w http.ResponseWriter, err error) {
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte(err.Error()))
+	fmt.Printf("Error: %s\n", err)
 }

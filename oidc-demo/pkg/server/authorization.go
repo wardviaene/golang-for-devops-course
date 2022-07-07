@@ -63,12 +63,13 @@ func (s *server) authorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.LoginRequests[sessionID] = LoginRequest{
+	s.LoginRequest[sessionID] = LoginRequest{
 		ClientID:     clientID,
 		RedirectURI:  redirectURI,
 		Scope:        scope,
 		ResponseType: responseType,
 		State:        state,
+		AppConfig:    appConfig,
 	}
 
 	w.Header().Add("location", fmt.Sprintf("/login?sessionID=%s", sessionID))
