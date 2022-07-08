@@ -13,7 +13,7 @@ func GetRandomString(n int) (string, error) {
 
 	_, err := io.ReadFull(rand.Reader, buf)
 	if err != nil {
-		return "", fmt.Errorf("crypto/rand is unavailable: Read() failed with %#v", err)
+		return "", fmt.Errorf("crypto/rand Reader error: %s", err)
 	}
 
 	randomStr := base64.URLEncoding.EncodeToString(buf)

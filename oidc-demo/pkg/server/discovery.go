@@ -14,7 +14,7 @@ func (s *server) discovery(w http.ResponseWriter, r *http.Request) {
 		TokenEndpoint:                     s.Config.Url + "/token",
 		UserinfoEndpoint:                  s.Config.Url + "/userinfo",
 		JwksURI:                           s.Config.Url + "/jwks.json",
-		ScopesSupported:                   []string{"oidc"},
+		ScopesSupported:                   []string{"openid"}, // was oidc in lecture, but should be openid
 		ResponseTypesSupported:            []string{"code"},
 		TokenEndpointAuthMethodsSupported: []string{"none"},
 	}
