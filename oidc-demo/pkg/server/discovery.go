@@ -17,6 +17,9 @@ func (s *server) discovery(w http.ResponseWriter, r *http.Request) {
 		ScopesSupported:                   []string{"openid"}, // was oidc in lecture, but should be openid
 		ResponseTypesSupported:            []string{"code"},
 		TokenEndpointAuthMethodsSupported: []string{"none"},
+		IDTokenSigningAlgValuesSupported:  []string{"RS256"},
+		ClaimsSupported:                   []string{"iss", "sub", "aud", "exp", "nbf", "iat"},
+		SubjectTypesSupported:             []string{"public"},
 	}
 	out, err := json.Marshal(discovery)
 	if err != nil {

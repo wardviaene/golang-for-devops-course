@@ -69,7 +69,7 @@ func (a *app) callback(w http.ResponseWriter, r *http.Request) {
 
 	delete(a.states, r.URL.Query().Get("state"))
 
-	accessToken, _, err := getTokenFromCode(discovery.TokenEndpoint, discovery.JwksURI, redirectUri, os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), r.URL.Query().Get("code"))
+	tokens, _, err := getTokenFromCode(discovery.TokenEndpoint, discovery.JwksURI, redirectUri, os.Getenv("CLIENT_ID"), os.Getenv("CLIENT_SECRET"), r.URL.Query().Get("code"))
 	if err != nil {
 		returnError(w, fmt.Errorf("getTokenFromCode error: %s", err))
 		return
@@ -80,7 +80,7 @@ func (a *app) callback(w http.ResponseWriter, r *http.Request) {
 		returnError(w, fmt.Errorf("newRequest error: %s", err))
 		return
 	}
-	req.Header.Add("Authorization", "Bearer "+accessToken.Raw)
+	req.Header.Add("Authorization", "Bearer "+tokens[1].Raw)
 
 	client := &http.Client{}
 
@@ -95,6 +95,8 @@ func (a *app) callback(w http.ResponseWriter, r *http.Request) {
 		returnError(w, fmt.Errorf("ReadAll error: %s", err))
 		return
 	}
+
+	fmt.Printf("IDToken: %s\n", tokens[0].Raw)
 
 	w.Write([]byte(fmt.Sprintf("Token received. Userinfo: %s", body)))
 }
