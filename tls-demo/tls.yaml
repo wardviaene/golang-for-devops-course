@@ -1,0 +1,8 @@
+caCert:
+  serial: 1
+  validForYears: 10
+  subject:
+    country: US
+    Organization: Golang Demo Org
+    OrganizationalUnit: Certificate Management
+    Locality: NY
