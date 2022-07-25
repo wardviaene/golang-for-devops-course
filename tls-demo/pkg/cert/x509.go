@@ -9,23 +9,10 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
-	"log"
-	"math/big"
-	"os"
 	"time"
 
 	"github.com/wardviaene/golang-for-devops-course/tls-demo/pkg/key"
 )
-
-func CreateClientCert(caCert *x509.Certificate, caKey interface{}, subject string) (bytes.Buffer, bytes.Buffer, error) {
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		log.Fatalf("failed to generate serial number: %s", err)
-	}
-	return CreateClientCertWithSerial(caCert, caKey, subject, serialNumber)
-}
 
 func CreateCACert(ca *CACert, keyFile, caCertFile string) error {
 	if ca == nil {
@@ -34,16 +21,17 @@ func CreateCACert(ca *CACert, keyFile, caCertFile string) error {
 	template := x509.Certificate{
 		SerialNumber: ca.Serial,
 		Subject: pkix.Name{
-			Organization:       []string{ca.Subject.Organization},
-			OrganizationalUnit: []string{ca.Subject.OrganizationalUnit},
-			Country:            []string{ca.Subject.Country},
-			Province:           []string{ca.Subject.Province},
-			Locality:           []string{ca.Subject.Locality},
-			StreetAddress:      []string{ca.Subject.StreetAddress},
-			PostalCode:         []string{ca.Subject.PostalCode},
+			Organization:       checkEmptyString([]string{ca.Subject.Organization}),
+			OrganizationalUnit: checkEmptyString([]string{ca.Subject.OrganizationalUnit}),
+			Country:            checkEmptyString([]string{ca.Subject.Country}),
+			Province:           checkEmptyString([]string{ca.Subject.Province}),
+			Locality:           checkEmptyString([]string{ca.Subject.Locality}),
+			StreetAddress:      checkEmptyString([]string{ca.Subject.StreetAddress}),
+			PostalCode:         checkEmptyString([]string{ca.Subject.PostalCode}),
+			CommonName:         ca.Subject.CommonName,
 		},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(ca.validForYears, 0, 0),
+		NotAfter:              time.Now().AddDate(ca.ValidForYears, 0, 0),
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
@@ -62,30 +50,56 @@ func CreateCACert(ca *CACert, keyFile, caCertFile string) error {
 	return nil
 }
 
-func CreateClientCertWithSerial(caCert *x509.Certificate, caKey interface{}, subject string, serialNumber *big.Int) (bytes.Buffer, bytes.Buffer, error) {
+func CreateCert(cert *Cert, caKey []byte, caCert []byte, keyFile, certFile string) error {
 	template := x509.Certificate{
-		SerialNumber: serialNumber,
+		SerialNumber: cert.Serial,
 		Subject: pkix.Name{
-			Organization: []string{os.Getenv("CLIENT_CERT_ORG")},
-			CommonName:   subject,
+			Organization:       checkEmptyString([]string{cert.Subject.Organization}),
+			OrganizationalUnit: checkEmptyString([]string{cert.Subject.OrganizationalUnit}),
+			Country:            checkEmptyString([]string{cert.Subject.Country}),
+			Province:           checkEmptyString([]string{cert.Subject.Province}),
+			Locality:           checkEmptyString([]string{cert.Subject.Locality}),
+			StreetAddress:      checkEmptyString([]string{cert.Subject.StreetAddress}),
+			PostalCode:         checkEmptyString([]string{cert.Subject.PostalCode}),
+			CommonName:         cert.Subject.CommonName,
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().AddDate(1, 1, 0),
+		NotAfter:  time.Now().AddDate(cert.ValidForYears, 0, 0),
 
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		BasicConstraintsValid: true,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:    x509.KeyUsageDigitalSignature,
 	}
 
-	return createCert(template, caKey, caCert)
+	caKeyParsed, err := key.PrivateKeyPemToRSA(caKey)
+	if err != nil {
+		return err
+	}
+	caCertParsed, err := PemToX509(caCert)
+	if err != nil {
+		return err
+	}
+
+	certBytes, key, err := createCert(template, caKeyParsed, caCertParsed)
+
+	if err := ioutil.WriteFile(keyFile, key.Bytes(), 0600); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(certFile, certBytes.Bytes(), 0644); err != nil {
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func createCert(template x509.Certificate, caKey interface{}, caCert *x509.Certificate) (bytes.Buffer, bytes.Buffer, error) {
+func createCert(template x509.Certificate, caKey *rsa.PrivateKey, caCert *x509.Certificate) (bytes.Buffer, bytes.Buffer, error) {
 	var (
 		certOut  bytes.Buffer
 		keyOut   bytes.Buffer
 		derBytes []byte
 	)
+
 	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return certOut, keyOut, err
@@ -114,4 +128,19 @@ func createCert(template x509.Certificate, caKey interface{}, caCert *x509.Certi
 	}
 
 	return certOut, keyOut, nil
+}
+
+func PemToX509(input []byte) (*x509.Certificate, error) {
+	block, _ := pem.Decode(input)
+	if block == nil {
+		return nil, fmt.Errorf("failed to parse certificate PEM")
+	}
+	return x509.ParseCertificate(block.Bytes)
+}
+
+func checkEmptyString(input []string) []string {
+	if len(input) == 1 && input[0] == "" {
+		return []string{}
+	}
+	return input
 }

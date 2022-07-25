@@ -4,7 +4,12 @@ import "math/big"
 
 type CACert struct {
 	Serial        *big.Int    `yaml:"serial"`
-	validForYears int         `yaml:"validForYears"`
+	ValidForYears int         `yaml:"validForYears"`
+	Subject       CertSubject `yaml:"subject"`
+}
+type Cert struct {
+	Serial        *big.Int    `yaml:"serial"`
+	ValidForYears int         `yaml:"validForYears"`
 	Subject       CertSubject `yaml:"subject"`
 }
 type CertSubject struct {

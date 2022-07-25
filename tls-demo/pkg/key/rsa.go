@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"os"
 )
 
@@ -35,4 +36,21 @@ func CreateRSAPrivateKeyAndSave(path string, n int) error {
 		return err
 	}
 	return nil
+}
+
+func PrivateKeyPemToRSA(input []byte) (*rsa.PrivateKey, error) {
+	var parsedKey *rsa.PrivateKey
+	var err error
+
+	privPem, _ := pem.Decode(input)
+
+	if privPem.Type != "RSA PRIVATE KEY" {
+		return nil, fmt.Errorf("RSA private key is of the wrong type: %s", privPem.Type)
+	}
+
+	if parsedKey, err = x509.ParsePKCS1PrivateKey(privPem.Bytes); err != nil {
+		return nil, fmt.Errorf("Unable to parse RSA private key: %v", err)
+	}
+
+	return parsedKey, nil
 }

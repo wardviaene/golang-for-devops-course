@@ -10,7 +10,8 @@ import (
 )
 
 type Config struct {
-	CACert *cert.CACert `yaml:"caCert"`
+	CACert *cert.CACert          `yaml:"caCert"`
+	Cert   map[string]*cert.Cert `yaml:"certs"`
 }
 
 var (
