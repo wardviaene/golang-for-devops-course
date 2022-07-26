@@ -11,20 +11,16 @@ var caCertPath string
 var caKeyPath string
 
 func init() {
-	rootCmd.AddCommand(caCmd)
-	rootCmd.Flags().StringVarP(&caCertPath, "crtOut", "c", "", "destination path for CA cert")
-	rootCmd.Flags().StringVarP(&caKeyPath, "keyOut", "k", "", "destination path for CA key")
+	createCmd.AddCommand(caCreateCmd)
+	caCreateCmd.Flags().StringVarP(&caCertPath, "crt-out", "o", "", "destination path for CA cert")
+	caCreateCmd.Flags().StringVarP(&caKeyPath, "key-out", "k", "", "destination path for CA key")
 }
 
-var caCmd = &cobra.Command{
+var caCreateCmd = &cobra.Command{
 	Use:   "ca",
 	Short: "CA commands",
 	Long:  `Commands to manage a Certificate Authority (CA)`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			fmt.Println("Not enough commands given. Possible sub-commands for ca: create")
-			return
-		}
 		if caCertPath == "" {
 			caCertPath = "ca.crt"
 		}

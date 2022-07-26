@@ -13,25 +13,21 @@ var certKeyPath string
 var certName string
 
 func init() {
-	certCmd.Flags().StringVarP(&caCertPath, "crtOut", "c", "", "destination path for cert")
-	certCmd.Flags().StringVarP(&caKeyPath, "keyOut", "k", "", "destination path for cert key")
-	certCmd.Flags().StringVar(&caKeyPath, "caKey", "", "caKey to sign certificate")
-	certCmd.Flags().StringVar(&caCertPath, "caCert", "", "CA Certificate")
-	certCmd.Flags().StringVar(&certName, "name", "", "name of certificate (need to match the name in the config)")
-	certCmd.MarkFlagRequired("caKey")
-	certCmd.MarkFlagRequired("caCert")
-	rootCmd.AddCommand(certCmd)
+	createCmd.AddCommand(certCreateCmd)
+	certCreateCmd.Flags().StringVarP(&caCertPath, "crt-out", "o", "", "destination path for cert")
+	certCreateCmd.Flags().StringVarP(&caKeyPath, "key-out", "k", "", "destination path for cert key")
+	certCreateCmd.Flags().StringVar(&caKeyPath, "ca-key", "", "caKey to sign certificate")
+	certCreateCmd.Flags().StringVar(&caCertPath, "ca-cert", "", "CA Certificate")
+	certCreateCmd.Flags().StringVar(&certName, "cert-name", "", "name of certificate (need to match the name in the config)")
+	certCreateCmd.MarkFlagRequired("caKey")
+	certCreateCmd.MarkFlagRequired("caCert")
 }
 
-var certCmd = &cobra.Command{
+var certCreateCmd = &cobra.Command{
 	Use:   "cert",
 	Short: "Certificate commands",
 	Long:  `Commands to manage a certificate`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			fmt.Println("Not enough commands given. Possible sub-commands for cert: create")
-			return
-		}
 		if certPath == "" {
 			certPath = "server.crt"
 		}

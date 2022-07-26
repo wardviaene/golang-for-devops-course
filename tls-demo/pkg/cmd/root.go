@@ -35,7 +35,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "tls.yaml", "config file")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "tls.yaml", "config file")
 }
 
 func initConfig() {

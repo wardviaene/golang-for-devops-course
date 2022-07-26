@@ -10,19 +10,15 @@ import (
 var keyPath string
 
 func init() {
-	rootCmd.AddCommand(keyCmd)
-	rootCmd.Flags().StringVarP(&keyPath, "out", "o", "", "destination path")
+	createCmd.AddCommand(keyCreateCmd)
+	keyCreateCmd.Flags().StringVarP(&keyPath, "key-out", "k", "", "destination path for the key")
 }
 
-var keyCmd = &cobra.Command{
+var keyCreateCmd = &cobra.Command{
 	Use:   "key",
 	Short: "key commands",
 	Long:  `Commands to manage (RSA) keys`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			fmt.Println("Not enough commands given. Possible sub-commands for key: create")
-			return
-		}
 		if keyPath == "" {
 			keyPath = "key.pem"
 		}
