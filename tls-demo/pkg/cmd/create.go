@@ -1,8 +1,6 @@
 package cmd
 
-import (
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 func init() {
 	rootCmd.AddCommand(createCmd)
@@ -10,6 +8,6 @@ func init() {
 
 var createCmd = &cobra.Command{
 	Use:   "create",
-	Short: "create ca, cert or keys",
-	Long:  `Commands to create resources (ca, cert, keys)`,
+	Short: "create CA, certs, or keys",
+	Long:  `commands to create resources (ca, certs, keys)`,
 }

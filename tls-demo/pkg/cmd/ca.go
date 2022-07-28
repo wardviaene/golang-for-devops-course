@@ -7,31 +7,25 @@ import (
 	"github.com/wardviaene/golang-for-devops-course/tls-demo/pkg/cert"
 )
 
-var caCertPath string
-var caKeyPath string
+var caKey string
+var caCert string
 
 func init() {
 	createCmd.AddCommand(caCreateCmd)
-	caCreateCmd.Flags().StringVarP(&caCertPath, "crt-out", "o", "", "destination path for CA cert")
-	caCreateCmd.Flags().StringVarP(&caKeyPath, "key-out", "k", "", "destination path for CA key")
+	caCreateCmd.Flags().StringVarP(&caKey, "key-out", "k", "ca.key", "destination path for ca key")
+	caCreateCmd.Flags().StringVarP(&caCert, "cert-out", "o", "ca.crt", "destination path for ca cert")
 }
 
 var caCreateCmd = &cobra.Command{
 	Use:   "ca",
-	Short: "CA commands",
-	Long:  `Commands to manage a Certificate Authority (CA)`,
+	Short: "ca commands",
+	Long:  `commands to create the CA`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if caCertPath == "" {
-			caCertPath = "ca.crt"
-		}
-		if caKeyPath == "" {
-			caKeyPath = "ca.key"
-		}
-
-		if err := cert.CreateCACert(cfgFileParsed.CACert, caKeyPath, caCertPath); err != nil {
-			fmt.Printf("Create ca error: %s\n", err)
+		err := cert.CreateCACert(config.CACert, caKey, caCert)
+		if err != nil {
+			fmt.Printf("Create CA error: %s\n", err)
 			return
 		}
-		fmt.Printf("Created CA Key and Cert: %s and %s\n", caKeyPath, caCertPath)
+		fmt.Printf("CA created. Key: %s, cert: %s\n", caKey, caCert)
 	},
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -14,16 +15,15 @@ type Config struct {
 	Cert   map[string]*cert.Cert `yaml:"certs"`
 }
 
-var (
-	cfgFile       string
-	cfgFileParsed Config
-	rootCmd       = &cobra.Command{
-		Use:   "tls",
-		Short: "tls is a command line tool for TLS",
-		Long: `tls is a command line tool for TLS.
-			Mainly used for generation of X.509 certificates, but can be extended`,
-	}
-)
+var cfgFilePath string
+var config Config
+
+var rootCmd = &cobra.Command{
+	Use:   "tls",
+	Short: "tls is a command line tool for TLS.",
+	Long: `tls is a command line tool for TLS.
+		Mainly used for generation of X.509 certificates, but can be extended`,
+}
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
@@ -35,20 +35,21 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "tls.yaml", "config file")
+	rootCmd.PersistentFlags().StringVarP(&cfgFilePath, "config", "c", "", "config file (default is tls.yaml)")
 }
 
 func initConfig() {
-	if cfgFile != "" {
-		cfgFileBytes, err := os.ReadFile(cfgFile)
-		if err != nil {
-			fmt.Printf("Config Read error: %s\n", err)
-			return
-		}
-		err = yaml.Unmarshal(cfgFileBytes, &cfgFileParsed)
-		if err != nil {
-			fmt.Printf("Config Parse error: %s\n", err)
-			return
-		}
+	if cfgFilePath == "" {
+		cfgFilePath = "tls.yaml"
+	}
+	cfgFileBytes, err := ioutil.ReadFile(cfgFilePath)
+	if err != nil {
+		fmt.Printf("Error while reading config file: %s\n", err)
+		return
+	}
+	err = yaml.Unmarshal(cfgFileBytes, &config)
+	if err != nil {
+		fmt.Printf("Error while parsing config file: %s\n", err)
+		return
 	}
 }
