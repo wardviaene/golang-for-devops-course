@@ -11,10 +11,19 @@ certs:
   go-demo.localtest.me:
     serial: 1
     validForYears: 1
-    dnsNames: ["go-demo-2.localtest.me"]
+    dnsNames: ["go-demo.localtest.me", "go-demo-2.localtest.me"]
     subject:
       country: US
       organization: Golang Demo Org
       organizationalUnit: go-demo department
       locality: NY
       commonName: go-demo.localtest.me
+  go-demo-client.localtest.me:
+    serial: 1
+    validForYears: 1
+    subject:
+      country: US
+      organization: Golang Demo Org
+      organizationalUnit: go-demo department
+      locality: NY
+      commonName: go-demo-client.localtest.me
