@@ -1,0 +1,24 @@
+#
+# Build go project
+#
+FROM golang:1.18-alpine as go-builder
+
+WORKDIR /app
+
+COPY . .
+
+RUN apk add -u -t build-tools curl git && \
+    CGO_ENABLED=0 go build -o server *.go && \
+    apk del build-tools && \
+    rm -rf /var/cache/apk/*
+
+#
+# Runtime container
+#
+FROM scratch
+
+COPY --from=go-builder /app/server /server
+
+EXPOSE 8080
+
+ENTRYPOINT ["/server"]
