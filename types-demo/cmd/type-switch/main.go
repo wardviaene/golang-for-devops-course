@@ -1,22 +1,35 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+)
 
 func main() {
-	var t1 int64 = 123
-	var t2 *int64 = &t1
+	var t1 string = "this is a string"
+	var t2 *string = &t1
 	discoverType(t2)
+	var t3 int = 123
+	discoverType(t3)
+	discoverType(nil)
 }
 
 func discoverType(t any) {
 	switch v := t.(type) {
 	case string:
-		fmt.Printf("This is a string: %s", v)
-	case int64:
-		fmt.Printf("This is an int64: %d", v)
-	case *int64:
-		fmt.Printf("This is an int64 pointer: %v", v)
+		t2 := v + "..."
+		fmt.Printf("String found: %s\n", t2)
+	case *string:
+		fmt.Printf("Pointer string found: %s\n", *v)
+	case int:
+		fmt.Printf("We have an integer: %d\n", v)
 	default:
-		fmt.Printf("Could not recognize type")
+		myType := reflect.TypeOf(t)
+		if myType == nil {
+			fmt.Printf("type is nil\n")
+		} else {
+			fmt.Printf("Type not found: %s\n", myType)
+		}
+
 	}
 }
