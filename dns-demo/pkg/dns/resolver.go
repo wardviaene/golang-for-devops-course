@@ -146,8 +146,28 @@ func dnsQuery(server, query string) (*dnsmessage.Parser, error) {
 		return nil, err
 	}
 
-	answerTmp, err := p.Answer()
-	fmt.Printf("answer: %+v\n", answerTmp)
+	questions, err := p.AllQuestions()
+	if err != nil {
+		return nil, err
+	}
+	if len(questions) != len(msg.Questions) {
+		return nil, fmt.Errorf("questions in request and response don't match")
+	}
+	if questions[0].Name != msg.Questions[0].Name {
+		return nil, fmt.Errorf("question Name in request and response don't match")
+	}
+	if questions[0].Type != msg.Questions[0].Type {
+		return nil, fmt.Errorf("question Name in request and response don't match")
+	}
+	if questions[0].Class != msg.Questions[0].Class {
+		return nil, fmt.Errorf("question Class in request and response don't match")
+	}
+
+	err = p.SkipAllQuestions()
+	if err != nil {
+		return nil, err
+	}
 
 	return &p, err
 }
+
