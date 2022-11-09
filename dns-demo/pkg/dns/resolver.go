@@ -13,11 +13,6 @@ import (
 const ROOT_SERVERS = "198.41.0.4,199.9.14.201,192.33.4.12,199.7.91.13,192.203.230.10,192.5.5.241,192.112.36.4,198.97.190.53"
 
 func Serve(pc net.PacketConn, addr net.Addr, buf []byte) {
-
-	fmt.Printf("Len: %d\n", len(buf))
-
-	fmt.Printf("hex: %x\n\n", buf)
-
 	var (
 		p           dnsmessage.Parser
 		queryHeader dnsmessage.Header
@@ -26,10 +21,7 @@ func Serve(pc net.PacketConn, addr net.Addr, buf []byte) {
 	if queryHeader, err = p.Start(buf); err != nil {
 		panic(err)
 	}
-	resolverServers := []net.IP{}
-	for _, ip := range strings.Split(ROOT_SERVERS, ",") {
-		resolverServers = append(resolverServers, net.ParseIP(ip))
-	}
+	resolverServers := getRootServers()
 
 	q, err := p.Question()
 	if err != nil {
@@ -39,9 +31,8 @@ func Serve(pc net.PacketConn, addr net.Addr, buf []byte) {
 		panic(err)
 	}
 
-	fmt.Printf("Found question for name '%s'\n", q.Name.String())
-	fmt.Printf("Question header: %+v\n", queryHeader)
-	response, err := dnsQuery(resolverServers, q.Name.String())
+	fmt.Printf("Incoming DNS query for: '%s'\n", q.Name.String())
+	response, err := dnsQuery(resolverServers, q)
 	if err != nil {
 		panic(err)
 	}
@@ -50,12 +41,11 @@ func Serve(pc net.PacketConn, addr net.Addr, buf []byte) {
 	if err != nil {
 		fmt.Printf("Warning: %s", err)
 	}
-	fmt.Printf("Done!\n")
 }
 
-func dnsQuery(resolverServers []net.IP, hostnameToQuery string) (*dnsmessage.Message, error) {
-	for i := 0; true; i++ {
-		dnsAnswer, header, err := outgoingDnsQuery(resolverServers, hostnameToQuery)
+func dnsQuery(resolverServers []net.IP, question dnsmessage.Question) (*dnsmessage.Message, error) {
+	for i := 0; i <= 3; i++ {
+		dnsAnswer, header, err := outgoingDnsQuery(resolverServers, question)
 		if err != nil {
 			panic(err)
 		}
@@ -73,13 +63,12 @@ func dnsQuery(resolverServers []net.IP, hostnameToQuery string) (*dnsmessage.Mes
 		}
 
 		// we didn't send answer, need to update server
-		referralFound := false
 		authorities, err := dnsAnswer.AllAuthorities()
 		if err != nil {
 			panic(err)
 		}
-		if len(authorities) > 0 {
-			referralFound = true
+		if len(authorities) == 0 && !header.Authoritative {
+			break // no authorities found and server is not authoritative
 		}
 		nsServers := make([]string, len(authorities))
 		for k, authority := range authorities {
@@ -91,26 +80,46 @@ func dnsQuery(resolverServers []net.IP, hostnameToQuery string) (*dnsmessage.Mes
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("Additional records: %+v\n", additionalRecords)
+
+		newResolverServersFound := false
 		resolverServers = []net.IP{}
 		for _, additionalRecord := range additionalRecords {
 			if additionalRecord.Header.Type == dnsmessage.TypeA {
 				for _, nsServer := range nsServers {
 					if additionalRecord.Header.Name.String() == nsServer {
+						newResolverServersFound = true
 						resolverServers = append(resolverServers, net.IP(additionalRecord.Body.(*dnsmessage.AResource).A[:]))
 					}
 				}
 			}
 		}
-		fmt.Printf("Resolver new data: %+v\n\n", resolverServers)
-		if i == 3 || !referralFound { // we're not doing more iterations than 3
+
+		if !newResolverServersFound {
+			for _, nsServer := range nsServers {
+				if !newResolverServersFound {
+					response, err := dnsQuery(getRootServers(), dnsmessage.Question{Name: dnsmessage.MustNewName(nsServer), Type: dnsmessage.TypeA, Class: dnsmessage.ClassINET})
+					if err != nil {
+						fmt.Printf("Warning: failed to lookup nsServer: %s\n", err)
+					} else {
+						for _, answer := range response.Answers {
+							if answer.Header.Type == dnsmessage.TypeA {
+								resolverServers = append(resolverServers, net.IP(answer.Body.(*dnsmessage.AResource).A[:]))
+								newResolverServersFound = true
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if !newResolverServersFound {
 			return &dnsmessage.Message{
-				Header: dnsmessage.Header{RCode: dnsmessage.RCodeNameError},
+				Header: dnsmessage.Header{RCode: dnsmessage.RCodeServerFailure},
 			}, nil
 		}
 	}
 	return &dnsmessage.Message{
-		Header: dnsmessage.Header{RCode: dnsmessage.RCodeNameError},
+		Header: dnsmessage.Header{RCode: dnsmessage.RCodeServerFailure},
 	}, nil
 }
 
@@ -126,8 +135,8 @@ func sendResponse(response *dnsmessage.Message, addr net.Addr, pc net.PacketConn
 	return nil
 }
 
-func outgoingDnsQuery(servers []net.IP, query string) (*dnsmessage.Parser, *dnsmessage.Header, error) {
-	fmt.Printf("New dns query. DNS servers: %+v\n", servers)
+func outgoingDnsQuery(servers []net.IP, question dnsmessage.Question) (*dnsmessage.Parser, *dnsmessage.Header, error) {
+	fmt.Printf("New outgoing dns query for %s, servers: %+v\n", question.Name.String(), servers)
 	msg := dnsmessage.Message{
 		Header: dnsmessage.Header{
 			RCode:            dnsmessage.RCode(0),
@@ -137,13 +146,7 @@ func outgoingDnsQuery(servers []net.IP, query string) (*dnsmessage.Parser, *dnsm
 			AuthenticData:    false,
 			RecursionDesired: false,
 		},
-		Questions: []dnsmessage.Question{
-			{
-				Name:  dnsmessage.MustNewName(query),
-				Type:  dnsmessage.TypeA,
-				Class: dnsmessage.ClassINET,
-			},
-		},
+		Questions: []dnsmessage.Question{question},
 	}
 	buf, err := msg.Pack()
 	if err != nil {
@@ -166,13 +169,12 @@ func outgoingDnsQuery(servers []net.IP, query string) (*dnsmessage.Parser, *dnsm
 	if err != nil {
 		return nil, nil, err
 	}
-	answer := make([]byte, 1024)
+	answer := make([]byte, 512)
 	n, err := bufio.NewReader(conn).Read(answer)
 	if err != nil {
 		return nil, nil, err
 	}
 	conn.Close()
-	fmt.Printf("Response from server: %x\n", answer[:n])
 	var p dnsmessage.Parser
 	var header dnsmessage.Header
 	if header, err = p.Start(answer[:n]); err != nil {
@@ -203,3 +205,12 @@ func outgoingDnsQuery(servers []net.IP, query string) (*dnsmessage.Parser, *dnsm
 
 	return &p, &header, err
 }
+
+func getRootServers() []net.IP {
+	rootServers := []net.IP{}
+	for _, ip := range strings.Split(ROOT_SERVERS, ",") {
+		rootServers = append(rootServers, net.ParseIP(ip))
+	}
+	return rootServers
+}
+
