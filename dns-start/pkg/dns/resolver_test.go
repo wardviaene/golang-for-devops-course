@@ -1,7 +1,8 @@
 package dns
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"math/big"
 	"net"
 	"strings"
 	"testing"
@@ -36,13 +37,18 @@ func (m *MockPacketConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-func TestServe(t *testing.T) {
+func TestHandlePacket(t *testing.T) {
 	names := []string{"www.google.com.", "www.amazon.com."}
 	for _, name := range names {
+		max := ^uint16(0)
+		randomNumber, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+		if err != nil {
+			t.Fatalf("rand error: %s", err)
+		}
 		message := dnsmessage.Message{
 			Header: dnsmessage.Header{
 				RCode:            dnsmessage.RCode(0),
-				ID:               uint16(rand.Intn(int(^uint16(0)))),
+				ID:               uint16(randomNumber.Int64()),
 				OpCode:           dnsmessage.OpCode(0),
 				Response:         false,
 				AuthenticData:    false,
