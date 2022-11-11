@@ -1,10 +1,10 @@
 package dns
 
 import (
-	"encoding/hex"
-	"fmt"
-	"math/rand"
+	"crypto/rand"
+	"math/big"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,13 +37,18 @@ func (m *MockPacketConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-func TestServe(t *testing.T) {
+func TestHandlePacket(t *testing.T) {
 	names := []string{"www.google.com.", "www.amazon.com."}
 	for _, name := range names {
+		max := ^uint16(0)
+		randomNumber, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+		if err != nil {
+			t.Fatalf("rand error: %s", err)
+		}
 		message := dnsmessage.Message{
 			Header: dnsmessage.Header{
 				RCode:            dnsmessage.RCode(0),
-				ID:               uint16(rand.Intn(int(^uint16(0)))),
+				ID:               uint16(randomNumber.Int64()),
 				OpCode:           dnsmessage.OpCode(0),
 				Response:         false,
 				AuthenticData:    false,
@@ -62,32 +67,46 @@ func TestServe(t *testing.T) {
 			t.Fatalf("Pack error: %s", err)
 		}
 
-		Serve(&MockPacketConn{}, &net.IPAddr{IP: net.ParseIP("127.0.0.1")}, buf)
+		err = handlePacket(&MockPacketConn{}, &net.IPAddr{IP: net.ParseIP("127.0.0.1")}, buf)
+		if err != nil {
+			t.Fatalf("serve error: %s", err)
+		}
 	}
 }
 
-func TestUnpacking(t *testing.T) {
-	reply := `cf868400000100060000000006676f6f676c6503636f6d0000010001c00c000100010000012c00048efa8a8bc00c000100010000012c00048efa8a71c00c000100010000012c00048efa8a65c00c000100010000012c00048efa8a64c00c000100010000012c00048efa8a66c00c000100010000012c00048efa8a8a`
-	data, err := hex.DecodeString(reply)
+func TestOutgoingDnsQuery(t *testing.T) {
+	question := dnsmessage.Question{
+		Name:  dnsmessage.MustNewName("com."),
+		Type:  dnsmessage.TypeNS,
+		Class: dnsmessage.ClassINET,
+	}
+	rootServers := strings.Split(ROOT_SERVERS, ",")
+	if len(rootServers) == 0 {
+		t.Fatalf("No root servers found")
+	}
+	servers := []net.IP{net.ParseIP(rootServers[0])}
+	dnsAnswer, header, err := outgoingDnsQuery(servers, question)
 	if err != nil {
-		panic(err)
+		t.Fatalf("outgoingDnsQuery error: %s", err)
 	}
-	var p dnsmessage.Parser
-	if _, err = p.Start(data); err != nil {
-		t.Errorf("Error: %s", err)
+	if header == nil {
+		t.Fatalf("No header found")
 	}
-
-	p.SkipAllQuestions()
-
-	h, err := p.AnswerHeader()
-	fmt.Printf("AnswerHeader: %+v", h)
+	if dnsAnswer == nil {
+		t.Fatalf("no answer found")
+	}
+	if header.RCode != dnsmessage.RCodeSuccess {
+		t.Fatalf("response was not succesful (maybe the DNS server has changed?)")
+	}
+	err = dnsAnswer.SkipAllAnswers()
 	if err != nil {
-		t.Errorf("AnswerHeader error: %s", err)
+		t.Fatalf("SkipAllAnswers error: %s", err)
 	}
-	_, err = p.Answer()
+	parsedAuthorities, err := dnsAnswer.AllAuthorities()
 	if err != nil {
-		t.Errorf("Answer error: %s", err)
+		t.Fatalf("Error getting answers")
 	}
-	fmt.Printf("% x", data)
+	if len(parsedAuthorities) == 0 {
+		t.Fatalf("No answers received")
+	}
 }
-

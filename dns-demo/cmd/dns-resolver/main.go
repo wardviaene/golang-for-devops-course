@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 
@@ -15,11 +16,12 @@ func main() {
 	defer p.Close()
 
 	for {
-		buf := make([]byte, 1024)
+		buf := make([]byte, 512)
 		n, addr, err := p.ReadFrom(buf)
 		if err != nil {
+			fmt.Printf("Connection error [%s]: %s\n", addr.String(), err)
 			continue
 		}
-		go dns.Serve(p, addr, buf[:n])
+		go dns.HandlePacket(p, addr, buf[:n])
 	}
 }
