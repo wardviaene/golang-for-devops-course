@@ -175,10 +175,8 @@ func outgoingDnsQuery(servers []net.IP, question dnsmessage.Question) (*dnsmessa
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(questions) == len(message.Questions) {
-		if err != nil {
-			return nil, nil, err
-		}
+	if len(questions) != len(message.Questions) {
+		return nil, nil, fmt.Errorf("answer packet doesn't have the same amount of questions")
 	}
 	err = p.SkipAllQuestions()
 	if err != nil {
