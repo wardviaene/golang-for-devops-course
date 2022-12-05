@@ -99,7 +99,7 @@ func deploy(ctx context.Context, client *kubernetes.Clientset, appFile []byte) (
 		if err != nil {
 			return nil, 0, fmt.Errorf("deployment error: %s", err)
 		}
-		return deploymentResponse.Spec.Template.Labels, 0, nil
+		return deploymentResponse.Spec.Template.Labels, *deploymentResponse.Spec.Replicas, nil
 	} else if err != nil && !errors.IsNotFound(err) {
 		return nil, 0, fmt.Errorf("deployment get error: %s", err)
 	}
