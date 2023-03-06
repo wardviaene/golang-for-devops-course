@@ -1,0 +1,33 @@
+go 1.18
+
+use (
+./aws-ec2
+./aws-s3
+./aws-s3-testing
+./azure-instance
+./dns-demo
+./dns-start
+./hello-world
+./hello-world-arguments
+./http-get
+./http-get-errorhandling
+./http-get-flags
+./http-get-functions
+./http-get-json
+./http-get-json-map
+./http-login
+./http-login-packaged
+./http-login-tests
+./kubernetes-deploy
+./kubernetes-deploy-github
+./mutex-demo
+./oidc-demo
+./oidc-start
+./reader-example
+./slices-demo
+./ssh-demo
+./test-server
+./tls-demo
+./tls-start
+./types-demo
+)
