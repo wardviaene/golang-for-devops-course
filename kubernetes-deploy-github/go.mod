@@ -1,4 +1,4 @@
-module github.com/wardviaene/golang-for-devops-course/kubernetes-deploy
+module github.com/wardviaene/golang-for-devops-course/kubernetes-deploy-github
 
 go 1.18
 

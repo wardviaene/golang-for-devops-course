@@ -1,4 +1,4 @@
-module github.com/wardviaene/golang-for-devops-course/aws-s3
+module github.com/wardviaene/golang-for-devops-course/aws-s3-testing
 
 go 1.18
 
