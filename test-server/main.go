@@ -114,6 +114,7 @@ func (ct *WordsHandler) login(w http.ResponseWriter, r *http.Request) {
 	if ct.password == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "start the test-server with a password first")
+		fmt.Printf("Returned HTTP 400 error to client: server has no password set\n")
 		return
 	}
 
