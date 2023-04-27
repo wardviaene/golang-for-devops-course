@@ -30,7 +30,7 @@ func TestAuthorization(t *testing.T) {
 	}
 
 	if res.StatusCode != http.StatusFound {
-		t.Fatalf("HTTP StatusCode: %d (expected %d)", res.StatusCode, http.StatusAccepted)
+		t.Fatalf("HTTP StatusCode: %d (expected %d)", res.StatusCode, http.StatusFound)
 	}
 
 	fmt.Printf("Got location: %s\n", res.Header.Get("location"))
