@@ -80,10 +80,13 @@ func TestOutgoingDnsQuery(t *testing.T) {
 		Type:  dnsmessage.TypeNS,
 		Class: dnsmessage.ClassINET,
 	}
-	rootServers := strings.Split(ROOT_SERVERS, ",")
-	if len(rootServers) == 0 {
+
+	if len(ROOT_SERVERS) == 0 {
 		t.Fatalf("No root servers found")
 	}
+
+	rootServers := strings.Split(ROOT_SERVERS, ",")
+
 	servers := []net.IP{net.ParseIP(rootServers[0])}
 	dnsAnswer, header, err := outgoingDnsQuery(servers, question)
 	if err != nil {
