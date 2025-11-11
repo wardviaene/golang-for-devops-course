@@ -1,0 +1,35 @@
+name: Verify Go Modules Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.work'  # uses version from go.work
+          cache: true
+
+      - name: Verify each module compiles
+        run: |
+          set -e
+          # Extract module directories (lines starting with ./)
+          MODULES=$(grep '^\s*\./' go.work | tr -d '()')
+          echo "Found modules:"
+          echo "$MODULES"
+
+          # Loop through each and run `go test ./...`
+          for dir in $MODULES; do
+            echo "module: $dir"
+            cd "$dir"
+            go vet ./...
+            cd - >/dev/null
+          done
