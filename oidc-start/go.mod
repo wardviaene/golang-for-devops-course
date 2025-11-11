@@ -3,7 +3,7 @@ module github.com/wardviaene/golang-for-devops-course/oidc-start
 go 1.25.4
 
 require (
-	github.com/golang-jwt/jwt/v4 v4.5.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/wardviaene/golang-for-devops-course/ssh-demo v0.0.0-20220616215025-d61a2b0cee5f
 )
 
