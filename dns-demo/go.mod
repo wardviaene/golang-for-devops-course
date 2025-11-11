@@ -1,5 +1,5 @@
 module github.com/wardviaene/golang-for-devops-course/dns-demo
 
-go 1.19
+go 1.23.0
 
-require golang.org/x/net v0.1.0 // indirect
+require golang.org/x/net v0.38.0
