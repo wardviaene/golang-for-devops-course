@@ -1,4 +1,6 @@
 name: Verify Go Modules Build
+permissions:
+  contents: read
 
 on:
   push:
