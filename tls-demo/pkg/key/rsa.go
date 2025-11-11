@@ -10,6 +10,9 @@ import (
 )
 
 func CreateRSAPrivateKey(n int) (*rsa.PrivateKey, error) {
+	if n < 2048 {
+		return nil, fmt.Errorf("RSA key length too small: %d bits. Minimum is 2048 bits", n)
+	}
 	return rsa.GenerateKey(rand.Reader, n)
 }
 
@@ -21,6 +24,9 @@ func RSAPrivateKeyToPEM(privateKey *rsa.PrivateKey) *pem.Block {
 }
 
 func CreateRSAPrivateKeyAndSave(path string, n int) error {
+	if n < 2048 {
+		return fmt.Errorf("RSA key length too small: %d bits. Minimum is 2048 bits", n)
+	}
 	privateKey, err := CreateRSAPrivateKey(n)
 	if err != nil {
 		return err
