@@ -1,3 +1,3 @@
 module github.com/wardviaene/go-for-devops-course/http-get-json-map
 
-go 1.18
+go 1.25.4

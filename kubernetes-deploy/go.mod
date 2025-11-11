@@ -1,6 +1,6 @@
 module github.com/wardviaene/golang-for-devops-course/kubernetes-deploy
 
-go 1.23.0
+go 1.25.4
 
 replace github.com/golang/mock => github.com/golang/mock v1.4.4
 

@@ -1,6 +1,6 @@
 module github.com/wardviaene/golang-for-devops-course/aws-s3
 
-go 1.18
+go 1.25.4
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.16.4

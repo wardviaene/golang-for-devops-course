@@ -1,3 +1,3 @@
 module github.com/wardviaene/golang-for-devops-course/http-get-functions
 
-go 1.18
+go 1.25.4

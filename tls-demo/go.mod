@@ -2,7 +2,7 @@ module github.com/wardviaene/golang-for-devops-course/tls-demo
 
 replace github.com/golang/mock v1.4.3 => github.com/golang/mock v1.4.4
 
-go 1.18
+go 1.25.4
 
 require (
 	github.com/spf13/cobra v1.3.0

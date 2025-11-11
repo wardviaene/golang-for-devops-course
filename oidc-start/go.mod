@@ -1,6 +1,6 @@
 module github.com/wardviaene/golang-for-devops-course/oidc-start
 
-go 1.23.0
+go 1.25.4
 
 require (
 	github.com/golang-jwt/jwt/v4 v4.4.2
